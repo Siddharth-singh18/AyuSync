@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id        String   @id @default(uuid())
+  name      String
+  age       Int
+  gender    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assessments Assessment[]
+}
+
+model Assessment {
+  id             String   @id @default(uuid())
+  patientId      String
+  symptomPayload Json     // JSONB to store flexible FHIR/symptom data
+  triageScore    Float?
+  triageDetails  Json?    // Stores the AI explainable triage response
+  isSynced       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  tasks   ReferralTask[]
+}
+
+model ReferralTask {
+  id           String   @id @default(uuid())
+  assessmentId String
+  action       String   // e.g., "Schedule Visit", "Provide Medication"
+  status       String   @default("PENDING") // PENDING, COMPLETED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+}
