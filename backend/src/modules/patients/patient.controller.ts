@@ -78,7 +78,7 @@ export const getPatientTimeline = async (req: Request, res: Response) => {
           },
           orderBy: { start: 'desc' }
         },
-        referrals: { orderBy: { createdAt: 'desc' } },
+        referrals: true,
         conditions: { where: { status: 'ACTIVE' } }
       }
     });
@@ -92,14 +92,13 @@ export const getPatientTimeline = async (req: Request, res: Response) => {
 
 export const createEncounter = async (req: Request, res: Response) => {
   try {
-    const { patientId, facilityId, type, reason } = req.body;
+    const { patientId, facilityId, type } = req.body;
     
     const encounter = await prisma.encounter.create({
       data: {
         patientId,
         facilityId,
         type,
-        reason,
         status: 'IN_PROGRESS'
       }
     });

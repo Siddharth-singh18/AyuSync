@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../../index';
+import { prisma } from '../index';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev';
 
@@ -22,9 +22,8 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as any;
 
-    // We can also fetch the user from DB to ensure they are still active and get fresh permissions
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: decoded.id },
       include: {
         roles: {
           include: {
@@ -38,8 +37,8 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ error: 'Unauthorized', message: 'User inactive or not found' });
     }
 
-    const roles = user.roles.map(r => r.name);
-    const permissions = Array.from(new Set(user.roles.flatMap(r => r.permissions.map(p => p.action))));
+    const roles = user.roles.map((r: any) => r.name);
+    const permissions = Array.from(new Set(user.roles.flatMap((r: any) => r.permissions.map((p: any) => p.action)))) as string[];
 
     req.user = {
       id: user.id,

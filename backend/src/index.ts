@@ -32,6 +32,16 @@ app.use(express.json());
 // REST Endpoints
 // ---------------------------------------------------------
 
+import authRoutes from './modules/auth/auth.routes';
+import patientRoutes from './modules/patients/patient.routes';
+import assessmentRoutes from './modules/assessments/assessment.routes';
+import facilityRoutes from './modules/facilities/facility.routes';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/assessments', assessmentRoutes);
+app.use('/api/facilities', facilityRoutes);
+
 // Health check and DB connection verification
 app.get('/health', async (req, res) => {
   try {
