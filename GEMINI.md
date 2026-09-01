@@ -19,3 +19,9 @@
 ## 4. Python AI Integration Context
 - **Explainable AI (XAI)**: AI service must return both the prediction (e.g., triage urgency level) and the explanation (e.g., which symptoms contributed most).
 - **Format**: JSON response with `urgency_score`, `recommended_action`, and `explanation_text`.
+
+## 5. Progress Tracker (Minimal Context)
+**Target:** SIH 2026 Rural Healthcare Platform
+**COMPLETED:** Backend (Phases 1-5), Frontend (Phases 1-4)
+**NEXT:** Backend (Phase 6: Appointments), Frontend (Phase 5: Sync Engine)
+**REMAINING:** Backend (Phases 7-24), Frontend (Phases 6-20)
