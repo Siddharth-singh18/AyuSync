@@ -1,32 +1,67 @@
-import React from 'react';
 
-// Basic router placeholder
-export default function App() {
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Patients from './pages/Patients';
+import PatientProfile from './pages/PatientProfile';
+import { Activity, LogOut } from 'lucide-react';
+
+// Protected Route Wrapper
+const ProtectedRoute = () => {
+  const token = localStorage.getItem('ayusync_token');
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-white">
-        <div className="flex h-16 items-center px-4 md:px-6">
-          <h1 className="text-xl font-bold text-primary">AyuSync</h1>
-          <nav className="ml-auto flex gap-4 sm:gap-6">
-            <a className="text-sm font-medium hover:underline underline-offset-4" href="#">Dashboard</a>
-            <a className="text-sm font-medium hover:underline underline-offset-4" href="#">Patients</a>
+      <header className="border-b bg-white shadow-sm">
+        <div className="flex h-16 items-center px-4 md:px-6 container mx-auto">
+          <div className="flex items-center gap-2 text-blue-600">
+            <Activity size={24} />
+            <h1 className="text-xl font-bold">AyuSync</h1>
+          </div>
+          <nav className="ml-8 flex gap-4 sm:gap-6">
+            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/dashboard">Dashboard</Link>
+            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/patients">Patients</Link>
           </nav>
-        </div>
-      </header>
-      <main className="container mx-auto p-4 md:p-6">
-        <h2 className="text-2xl font-bold tracking-tight mb-4">Doctor Dashboard</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* Dashboard Cards will go here */}
-          <div className="rounded-xl border bg-card text-card-foreground shadow">
-            <div className="p-6 flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium">Patients in Queue</h3>
-            </div>
-            <div className="p-6 pt-0">
-              <div className="text-2xl font-bold">0</div>
-            </div>
+          <div className="ml-auto">
+            <button 
+              onClick={() => {
+                localStorage.removeItem('ayusync_token');
+                localStorage.removeItem('ayusync_user');
+                window.location.href = '/login';
+              }}
+              className="text-sm text-gray-500 hover:text-red-600 flex items-center gap-1 transition-colors"
+            >
+              <LogOut size={16} /> Logout
+            </button>
           </div>
         </div>
+      </header>
+      <main className="container mx-auto p-4 md:p-6 mt-4">
+        <Outlet />
       </main>
     </div>
+  );
+};
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/patients/:id" element={<PatientProfile />} />
+        </Route>
+        
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
