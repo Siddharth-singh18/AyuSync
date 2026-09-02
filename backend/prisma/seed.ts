@@ -8,17 +8,56 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('password123', 10);
 
+  // Seed Permissions
+  const permissionsList = [
+    'patient.read',
+    'patient.create',
+    'encounter.create',
+    'assessment.read',
+    'assessment.create',
+    'facility.read',
+    'facility.update'
+  ];
+
+  const permissionRecords = [];
+  for (const action of permissionsList) {
+    const perm = await prisma.permission.upsert({
+      where: { action },
+      update: {},
+      create: { action }
+    });
+    permissionRecords.push(perm);
+  }
+
   // Seed Roles
   const workerRole = await prisma.role.upsert({
     where: { name: 'WORKER' },
-    update: {},
-    create: { name: 'WORKER' }
+    update: {
+      permissions: {
+        connect: permissionRecords.map(p => ({ id: p.id }))
+      }
+    },
+    create: {
+      name: 'WORKER',
+      permissions: {
+        connect: permissionRecords.map(p => ({ id: p.id }))
+      }
+    }
   });
 
   const doctorRole = await prisma.role.upsert({
     where: { name: 'DOCTOR' },
-    update: {},
-    create: { name: 'DOCTOR' }
+    update: {
+      permissions: {
+        connect: permissionRecords.map(p => ({ id: p.id }))
+      }
+    },
+    create: {
+      name: 'DOCTOR',
+      permissions: {
+        connect: permissionRecords.map(p => ({ id: p.id }))
+      }
+    }
   });
 
   // Seed Facility

@@ -44,16 +44,19 @@ export const createPatient = async (req: Request, res: Response) => {
 
 export const searchPatients = async (req: Request, res: Response) => {
   try {
-    const { query } = req.query;
+    const qStr = String(req.query.q || req.query.query || '').trim();
+    const whereCondition = qStr ? {
+      OR: [
+        { name: { contains: qStr, mode: 'insensitive' as const } },
+        { phone: { contains: qStr } },
+        { identifiers: { some: { value: qStr } } }
+      ]
+    } : {};
+
     const patients = await prisma.patient.findMany({
-      where: {
-        OR: [
-          { name: { contains: String(query), mode: 'insensitive' } },
-          { phone: { contains: String(query) } },
-          { identifiers: { some: { value: String(query) } } }
-        ]
-      },
-      take: 20
+      where: whereCondition,
+      take: 20,
+      orderBy: { createdAt: 'desc' }
     });
     res.json(patients);
   } catch (error) {

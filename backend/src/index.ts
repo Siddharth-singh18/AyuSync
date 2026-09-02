@@ -19,13 +19,13 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     // Placeholder for your frontend URL to restrict Socket.io connections
-    origin: process.env.FRONTEND_URL || '*', 
+    origin: process.env.FRONTEND_URL || '*',
     methods: ['GET', 'POST']
   }
 });
 
 // Middlewares
-app.use(cors());
+app.use(cors({ origin: ['http://localhost:5175', 'http://localhost:5173', 'http://localhost:3000'] }));
 app.use(express.json());
 
 // ---------------------------------------------------------

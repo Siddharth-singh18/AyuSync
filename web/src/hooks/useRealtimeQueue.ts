@@ -10,7 +10,7 @@ export function useRealtimeQueue(doctorId: string) {
     // 26. REALTIME UX: Connect to backend Socket.IO
     const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
       auth: {
-        token: localStorage.getItem('token')
+        token: localStorage.getItem('ayusync_token')
       }
     });
 
