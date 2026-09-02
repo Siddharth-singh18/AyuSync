@@ -7,6 +7,10 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { phone, password } = req.body;
 
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Phone and password are required' });
+    }
+
     const user = await prisma.user.findUnique({
       where: { phone },
       include: { roles: true }

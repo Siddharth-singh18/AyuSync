@@ -36,11 +36,17 @@ import authRoutes from './modules/auth/auth.routes';
 import patientRoutes from './modules/patients/patient.routes';
 import assessmentRoutes from './modules/assessments/assessment.routes';
 import facilityRoutes from './modules/facilities/facility.routes';
+import referralRoutes from './modules/referrals/referral.routes';
+import queueRoutes from './modules/queue/queue.routes';
+import appointmentRoutes from './modules/appointments/appointment.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/facilities', facilityRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/queue', queueRoutes);
+app.use('/api/appointments', appointmentRoutes);
 
 // Health check and DB connection verification
 app.get('/health', async (req, res) => {
