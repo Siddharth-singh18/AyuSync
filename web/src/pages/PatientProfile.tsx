@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
+import AiTriageCard from '../components/triage/AiTriageCard';
 
 export default function PatientProfile() {
   const { id } = useParams();
@@ -9,21 +10,49 @@ export default function PatientProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Assessment Form State
+  const [showAssessmentForm, setShowAssessmentForm] = useState(false);
+  const [symptomInput, setSymptomInput] = useState('');
+  const [submittingAssessment, setSubmittingAssessment] = useState(false);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/patients/${id}/timeline`);
+      setPatient(res.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to load patient profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get(`/patients/${id}/timeline`);
-        setPatient(res.data);
-      } catch (err: any) {
-        setError(err.response?.data?.error || 'Failed to load patient profile');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     if (id) fetchProfile();
   }, [id]);
+
+  const handleAddAssessment = async () => {
+    if (!symptomInput.trim() || !patient?.encounters?.[0]?.id) return;
+    setSubmittingAssessment(true);
+    try {
+      await api.post('/assessments', {
+        patientId: patient.id,
+        encounterId: patient.encounters[0].id,
+        symptoms: [{ name: symptomInput, duration: '1 day', severity: 'MODERATE' }],
+        vitals: [],
+        provenance: 'WORKER_RECORDED'
+      });
+      setSymptomInput('');
+      setShowAssessmentForm(false);
+      // Refresh timeline to see the new assessment & triage
+      await fetchProfile();
+    } catch (err) {
+      console.error('Failed to submit assessment', err);
+      alert('Failed to submit assessment. Make sure an encounter exists.');
+    } finally {
+      setSubmittingAssessment(false);
+    }
+  };
 
   if (loading) {
     return <div className="p-8 text-center text-gray-500 animate-pulse">Loading patient profile...</div>;
@@ -61,7 +90,7 @@ export default function PatientProfile() {
             <li className="flex justify-between"><span className="text-gray-500">Registered:</span> <span>{new Date(patient.createdAt).toLocaleDateString()}</span></li>
           </ul>
         </div>
-        
+
         <div className="rounded-xl border bg-white shadow-sm p-6 col-span-2">
           <h3 className="font-semibold text-lg mb-4 border-b pb-2">Timeline</h3>
           {patient.encounters && patient.encounters.length > 0 ? (
@@ -72,11 +101,26 @@ export default function PatientProfile() {
                   <p className="text-xs text-gray-500">{new Date(enc.start).toLocaleString()} • Status: {enc.status}</p>
 
                   {enc.assessments && enc.assessments.length > 0 && (
-                    <div className="mt-2 bg-gray-50 p-2 rounded text-sm">
-                      <p className="font-semibold text-gray-700">Assessment</p>
+                    <div className="mt-4 flex flex-col gap-4">
                       {enc.assessments.map((ass: any) => (
-                        <div key={ass.id} className="mt-1">
-                          <p className="text-gray-600 text-xs">Symptoms: {ass.symptoms?.map((s: any) => s.name).join(', ') || 'None recorded'}</p>
+                        <div key={ass.id} className="bg-gray-50 p-4 rounded-xl shadow-sm">
+                          <p className="font-semibold text-gray-700 mb-2">Assessment Details</p>
+                          <p className="text-gray-600 text-sm mb-3">Symptoms: {ass.symptoms?.map((s: any) => s.name).join(', ') || 'None recorded'}</p>
+
+                          {ass.aiRecommendations && ass.aiRecommendations.length > 0 && (
+                            <div className="mt-2">
+                              {ass.aiRecommendations.map((ai: any) => (
+                                <AiTriageCard
+                                  key={ai.id}
+                                  score={ai.confidence || 0}
+                                  urgencyLevel={ai.urgencyCategory as any}
+                                  explanation={ai.reasons?.[0] || 'No reason provided'}
+                                  provenanceModel="AyuSync Triage Fallback"
+                                  confidence={ai.confidence || 0}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -85,11 +129,39 @@ export default function PatientProfile() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 italic">No encounters recorded yet.</p>
+            <p className="text-gray-500 italic mb-4">No encounters recorded yet.</p>
+          )}
+
+          {/* Quick Assessment Action */}
+          {patient.encounters && patient.encounters.length > 0 && (
+            <div className="mt-6 border-t pt-4">
+              {!showAssessmentForm ? (
+                <Button onClick={() => setShowAssessmentForm(true)} variant="outline">
+                  + Add Assessment to Latest Encounter
+                </Button>
+              ) : (
+                <div className="bg-gray-50 p-4 rounded-xl border space-y-4">
+                  <h4 className="font-semibold">New Assessment</h4>
+                  <input
+                    type="text"
+                    placeholder="Enter main symptom (e.g. High Fever)"
+                    value={symptomInput}
+                    onChange={(e) => setSymptomInput(e.target.value)}
+                    className="w-full border p-2 rounded-md"
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddAssessment} disabled={submittingAssessment || !symptomInput.trim()}>
+                      {submittingAssessment ? 'Saving...' : 'Save Assessment'}
+                    </Button>
+                    <Button onClick={() => setShowAssessmentForm(false)} variant="outline">Cancel</Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
-      
+
       {patient.referrals && patient.referrals.length > 0 && (
          <div className="border-t pt-8 mt-8">
            <h3 className="text-lg font-bold text-gray-800 mb-4">Referrals</h3>

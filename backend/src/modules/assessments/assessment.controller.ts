@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
+import { analyzeAssessment } from '../ai/ai.service';
+
+
 
 export const createAssessment = async (req: Request, res: Response) => {
   try {
@@ -34,7 +37,19 @@ export const createAssessment = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json(assessment);
+    // Trigger Triage Fallback/AI Generation asynchronously (or await it)
+    if (assessment.id) {
+      // In a real production system, this could be sent to a queue
+      await analyzeAssessment(assessment.id, 'doc-1'); // Currently hardcoding doctorId to ensure broadcast runs if needed, or pass from req
+    }
+
+    // Refetch the assessment to include the AI Recommendations before returning
+    const finalAssessment = await prisma.assessment.findUnique({
+      where: { id: assessment.id },
+      include: { symptoms: true, aiRecommendations: true }
+    });
+
+    res.status(201).json(finalAssessment);
   } catch (error) {
     console.error('Error creating assessment:', error);
     res.status(500).json({ error: 'Internal Server Error' });

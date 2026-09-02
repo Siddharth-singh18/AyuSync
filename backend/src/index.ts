@@ -39,6 +39,7 @@ import facilityRoutes from './modules/facilities/facility.routes';
 import referralRoutes from './modules/referrals/referral.routes';
 import queueRoutes from './modules/queue/queue.routes';
 import appointmentRoutes from './modules/appointments/appointment.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
@@ -47,6 +48,7 @@ app.use('/api/facilities', facilityRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check and DB connection verification
 app.get('/health', async (req, res) => {
