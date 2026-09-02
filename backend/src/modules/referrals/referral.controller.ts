@@ -30,11 +30,6 @@ export const updateReferralStatus = async (req: Request, res: Response) => {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedRef = await tx.referral.update({
-        where: { id },
-        data: { status: newStatus }
-      });
-
       // 24. Record every transition in ReferralEvent
       await tx.referralEvent.create({
         data: {
@@ -42,6 +37,17 @@ export const updateReferralStatus = async (req: Request, res: Response) => {
           statusFrom: currentStatus,
           statusTo: newStatus,
           notes
+        }
+      });
+
+      const updatedRef = await tx.referral.update({
+        where: { id },
+        data: { status: newStatus },
+        include: {
+          patient: true,
+          origin: true,
+          destination: true,
+          events: { orderBy: { createdAt: 'desc' } }
         }
       });
 

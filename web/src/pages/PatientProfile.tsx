@@ -6,6 +6,20 @@ import AiTriageCard from '../components/triage/AiTriageCard';
 
 export default function PatientProfile() {
   const { id } = useParams();
+
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    'CREATED': ['SUBMITTED', 'CANCELLED'],
+    'SUBMITTED': ['ACCEPTED', 'REJECTED'],
+    'ACCEPTED': ['SCHEDULED'],
+    'SCHEDULED': ['PATIENT_ARRIVED', 'CANCELLED'],
+    'PATIENT_ARRIVED': ['IN_CONSULTATION'],
+    'IN_CONSULTATION': ['DIAGNOSTICS_PENDING', 'TREATMENT', 'COUNTER_REFERRED'],
+    'DIAGNOSTICS_PENDING': ['TREATMENT', 'COUNTER_REFERRED'],
+    'TREATMENT': ['COUNTER_REFERRED'],
+    'COUNTER_REFERRED': ['FOLLOW_UP_REQUIRED', 'COMPLETED'],
+    'FOLLOW_UP_REQUIRED': ['COMPLETED']
+  };
+
   const [patient, setPatient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,6 +65,15 @@ export default function PatientProfile() {
       alert('Failed to submit assessment. Make sure an encounter exists.');
     } finally {
       setSubmittingAssessment(false);
+    }
+  };
+
+  const handleReferralTransition = async (referralId: string, newStatus: string) => {
+    try {
+      await api.put(`/referrals/${referralId}/status`, { newStatus, notes: 'Updated via Patient Profile UI' });
+      await fetchProfile();
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to update referral status');
     }
   };
 
@@ -166,14 +189,36 @@ export default function PatientProfile() {
          <div className="border-t pt-8 mt-8">
            <h3 className="text-lg font-bold text-gray-800 mb-4">Referrals</h3>
            <div className="grid gap-4 md:grid-cols-2">
-             {patient.referrals.map((ref: any) => (
-               <div key={ref.id} className="border p-4 rounded-xl shadow-sm bg-white">
-                 <p className="font-medium text-blue-600">Status: {ref.status}</p>
-                 <p className="text-sm text-gray-600 mt-1">From Facility ID: {ref.originFacilityId}</p>
-                 <p className="text-sm text-gray-600">To Facility ID: {ref.destinationFacilityId}</p>
-                 <p className="text-xs text-gray-400 mt-2">Created: {new Date(ref.createdAt).toLocaleDateString()}</p>
-               </div>
-             ))}
+             {patient.referrals.map((ref: any) => {
+               const possibleTransitions = VALID_TRANSITIONS[ref.status] || [];
+               return (
+                 <div key={ref.id} className="border p-4 rounded-xl shadow-sm bg-white">
+                   <p className="font-medium text-blue-600 mb-2 border-b pb-1">
+                     <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs mr-2">{ref.status}</span>
+                   </p>
+                   <p className="text-sm text-gray-600 mt-2">
+                     <span className="font-semibold text-gray-700">From:</span> {ref.origin?.name || ref.originId}
+                   </p>
+                   <p className="text-sm text-gray-600">
+                     <span className="font-semibold text-gray-700">To:</span> {ref.destination?.name || ref.destinationId}
+                   </p>
+                   <p className="text-sm text-gray-600 mt-1">
+                     <span className="font-semibold text-gray-700">Reason:</span> {ref.reason || 'N/A'}
+                   </p>
+                   <p className="text-xs text-gray-400 mt-2">Created: {new Date(ref.createdAt).toLocaleDateString()}</p>
+
+                   {possibleTransitions.length > 0 && (
+                     <div className="mt-4 pt-3 border-t flex flex-wrap gap-2">
+                       {possibleTransitions.map(t => (
+                         <Button key={t} size="sm" variant="outline" onClick={() => handleReferralTransition(ref.id, t)}>
+                           Mark {t}
+                         </Button>
+                       ))}
+                     </div>
+                   )}
+                 </div>
+               );
+             })}
            </div>
          </div>
       )}
