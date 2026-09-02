@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
 import PatientProfile from './pages/PatientProfile';
 import FacilityReadiness from './pages/FacilityReadiness';
+import Queue from './pages/Queue';
 import { Activity, LogOut } from 'lucide-react';
 
 
@@ -26,6 +27,7 @@ const ProtectedRoute = () => {
           <nav className="ml-8 flex gap-4 sm:gap-6">
             <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/dashboard">Dashboard</Link>
             <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/patients">Patients</Link>
+            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/queue">Queue</Link>
             <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/facilities">Facilities</Link>
 
           </nav>
@@ -61,6 +63,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientProfile />} />
+          <Route path="/queue" element={<Queue />} />
           <Route path="/facilities" element={<FacilityReadiness />} />
         </Route>
         

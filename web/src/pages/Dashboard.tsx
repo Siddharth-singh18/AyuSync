@@ -50,7 +50,8 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-8 p-8 border border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
-        <p className="text-gray-500">Advanced Dashboard Predictive Metrics are not yet implemented in Phase 4.</p>
+        <h3 className="text-lg font-bold text-gray-700 mb-2">AyuSync Operational Command Center</h3>
+        <p className="text-gray-500">Live telemedicine operations are running on a PostgreSQL-backed deterministic simulation environment.</p>
       </div>
     </div>
   );

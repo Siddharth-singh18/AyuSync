@@ -37,3 +37,16 @@ export const login = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+export const getDoctors = async (req: Request, res: Response) => {
+  try {
+    const doctors = await prisma.doctor.findMany({
+      include: {
+        user: { select: { id: true, phone: true } }
+      }
+    });
+    res.json(doctors);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
