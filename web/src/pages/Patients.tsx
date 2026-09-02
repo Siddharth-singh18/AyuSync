@@ -78,7 +78,7 @@ export default function Patients() {
             ) : (
               patients.map(p => (
                 <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-gray-500">{p.id.split('-')[0]}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-gray-500">{p.id.substring(0,8)}</td>
                   <td className="px-6 py-4 font-medium text-gray-900">{p.name}</td>
                   <td className="px-6 py-4 text-gray-600">{p.age || '--'} / {p.gender || '--'}</td>
                   <td className="px-6 py-4 text-gray-600">{p.village || '--'}</td>

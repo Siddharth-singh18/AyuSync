@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
-import AssessmentView from './AssessmentView';
 
 export default function PatientProfile() {
   const { id } = useParams();
@@ -69,8 +68,19 @@ export default function PatientProfile() {
             <div className="space-y-4">
               {patient.encounters.map((enc: any) => (
                 <div key={enc.id} className="border-l-2 border-blue-200 pl-4 py-1">
-                  <p className="font-medium">{enc.type.replace('_', ' ')}</p>
+                  <p className="font-medium">{enc.type.replace(/_/g, ' ')}</p>
                   <p className="text-xs text-gray-500">{new Date(enc.start).toLocaleString()} • Status: {enc.status}</p>
+
+                  {enc.assessments && enc.assessments.length > 0 && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded text-sm">
+                      <p className="font-semibold text-gray-700">Assessment</p>
+                      {enc.assessments.map((ass: any) => (
+                        <div key={ass.id} className="mt-1">
+                          <p className="text-gray-600 text-xs">Symptoms: {ass.symptoms?.map((s: any) => s.name).join(', ') || 'None recorded'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -80,12 +90,19 @@ export default function PatientProfile() {
         </div>
       </div>
       
-      {/* If there's an active assessment, we could render the existing AssessmentView logic here. 
-          For Phase 4, we're demonstrating the integration of the real data above. */}
-      {patient.encounters && patient.encounters.length > 0 && (
-         <div className="opacity-75 border-t pt-8">
-           <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase">Latest Assessment Details</h3>
-           <AssessmentView />
+      {patient.referrals && patient.referrals.length > 0 && (
+         <div className="border-t pt-8 mt-8">
+           <h3 className="text-lg font-bold text-gray-800 mb-4">Referrals</h3>
+           <div className="grid gap-4 md:grid-cols-2">
+             {patient.referrals.map((ref: any) => (
+               <div key={ref.id} className="border p-4 rounded-xl shadow-sm bg-white">
+                 <p className="font-medium text-blue-600">Status: {ref.status}</p>
+                 <p className="text-sm text-gray-600 mt-1">From Facility ID: {ref.originFacilityId}</p>
+                 <p className="text-sm text-gray-600">To Facility ID: {ref.destinationFacilityId}</p>
+                 <p className="text-xs text-gray-400 mt-2">Created: {new Date(ref.createdAt).toLocaleDateString()}</p>
+               </div>
+             ))}
+           </div>
          </div>
       )}
     </div>

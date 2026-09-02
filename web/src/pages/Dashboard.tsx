@@ -8,17 +8,17 @@ export default function Dashboard() {
         {/* Dashboard Cards */}
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
           <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Patients in Queue</h3>
-          <div className="text-3xl font-bold text-gray-900">0</div>
+          <div className="text-3xl font-bold text-gray-900">N/A</div>
         </div>
         
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
           <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Active Assessments</h3>
-          <div className="text-3xl font-bold text-blue-600">0</div>
+          <div className="text-3xl font-bold text-blue-600">N/A</div>
         </div>
         
         <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
           <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Pending Referrals</h3>
-          <div className="text-3xl font-bold text-orange-600">0</div>
+          <div className="text-3xl font-bold text-orange-600">N/A</div>
         </div>
       </div>
       
