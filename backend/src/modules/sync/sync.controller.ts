@@ -31,10 +31,13 @@ export const processSyncBatch = async (req: Request, res: Response) => {
           await tx.syncOperation.create({
             data: {
               id: operationId,
-              workerId,
+              userId: workerId,
+              deviceId: mutation.deviceId || 'unknown',
               entity,
-              action,
+              entityId: payload.id || 'unknown',
+              operation: action,
               payload,
+              clientTimestamp: mutation.timestamp ? new Date(mutation.timestamp) : new Date(),
               status: 'SUCCESS'
             }
           });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '../ui/Button';
 
 export default function CounterReferralForm({ referralId }: { referralId: string }) {

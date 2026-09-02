@@ -19,10 +19,10 @@ export default function Login() {
     try {
       const response = await api.post('/auth/login', { phone, password });
       const { token, user } = response.data;
-      
+
       localStorage.setItem('ayusync_token', token);
       localStorage.setItem('ayusync_user', JSON.stringify(user));
-      
+
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to login. Please try again.');
@@ -60,7 +60,7 @@ export default function Login() {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
@@ -76,7 +76,7 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign in'}
           </Button>
         </form>
-        
+
         <div className="mt-6 text-center text-xs text-gray-500">
           <p>Demo Credentials: +919998887776 / password123 (Worker)</p>
           <p>Demo Credentials: +919876543210 / password123 (Doctor)</p>

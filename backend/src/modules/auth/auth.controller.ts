@@ -6,8 +6,8 @@ import { prisma } from '../../index';
 export const login = async (req: Request, res: Response) => {
   try {
     const { phone, password } = req.body;
-    
-    const user = await prisma.user.findUnique({ 
+
+    const user = await prisma.user.findUnique({
       where: { phone },
       include: { roles: true }
     });
@@ -23,8 +23,8 @@ export const login = async (req: Request, res: Response) => {
     const primaryRole = user.roles.length > 0 ? user.roles[0].name : 'USER';
 
     const token = jwt.sign(
-      { id: user.id, role: primaryRole, phone: user.phone }, 
-      process.env.JWT_SECRET || 'ayusync_super_secret', 
+      { id: user.id, role: primaryRole, phone: user.phone },
+      process.env.JWT_SECRET || 'ayusync_super_secret',
       { expiresIn: '24h' }
     );
 

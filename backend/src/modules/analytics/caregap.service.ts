@@ -11,7 +11,7 @@ export const detectCareGaps = async () => {
         dueDate: { lt: new Date() },
         status: 'PENDING'
       },
-      include: { patient: true, worker: true }
+      include: { worker: true }
     });
 
     if (missedFollowUps.length > 0) {

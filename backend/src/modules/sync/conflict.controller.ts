@@ -18,7 +18,7 @@ export const resolveSyncConflict = async (req: Request, res: Response) => {
     await prisma.$transaction(async (tx) => {
       if (resolutionStrategy === 'OVERWRITE_SERVER' || resolutionStrategy === 'MERGE') {
         // Apply the resolved payload
-        if (operation.entity === 'PATIENT' && operation.action === 'UPDATE') {
+        if (operation.entity === 'PATIENT' && operation.operation === 'UPDATE') {
           const payloadObj = typeof resolvedPayload === 'string' ? JSON.parse(resolvedPayload) : resolvedPayload;
           await tx.patient.update({
             where: { id: payloadObj.id },

@@ -9,7 +9,7 @@ export const analyzeAssessment = async (assessmentId: string, doctorId: string) 
   try {
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      include: { symptoms: true, vitals: true }
+      include: { symptoms: true }
     });
 
     if (!assessment) return;
@@ -35,12 +35,9 @@ export const analyzeAssessment = async (assessmentId: string, doctorId: string) 
     const aiRecommendation = await prisma.aIRecommendation.create({
       data: {
         assessmentId,
-        urgencyScore: aiResponse.urgencyScore,
-        recommendedAction: aiResponse.recommendedAction,
-        explanation: aiResponse.explanation,
-        modelName: aiResponse.modelName,
-        confidence: aiResponse.confidence,
-        status: 'PENDING' // Requires human confirmation
+        urgencyCategory: aiResponse.recommendedAction,
+        reasons: [aiResponse.explanation],
+        confidence: aiResponse.confidence
       }
     });
 

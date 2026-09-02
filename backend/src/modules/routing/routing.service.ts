@@ -7,10 +7,7 @@ export const getOptimalFacilities = async (patientLat: number, patientLon: numbe
     const facilities = await prisma.facility.findMany({
       include: {
         services: true,
-        availability: true,
-        queue: {
-          where: { status: 'WAITING' }
-        }
+        availability: true
       }
     });
 
@@ -19,7 +16,7 @@ export const getOptimalFacilities = async (patientLat: number, patientLon: numbe
       let score = 100;
       
       // Load penalty
-      const queueLength = f.queue.length;
+      const queueLength = 0; // Mocked for now since queue is not on Facility
       score -= (queueLength * 5); // Reduce score for high load
 
       // Readiness factor
@@ -30,7 +27,7 @@ export const getOptimalFacilities = async (patientLat: number, patientLon: numbe
       // Hard filter for specialty
       let hasSpecialty = true;
       if (requiredSpecialty) {
-        hasSpecialty = f.services.some(s => s.name.toLowerCase().includes(requiredSpecialty.toLowerCase()));
+        hasSpecialty = f.services.some((s: any) => s.service.toLowerCase().includes(requiredSpecialty.toLowerCase()));
       }
 
       return {

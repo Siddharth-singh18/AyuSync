@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Button } from '../components/ui/Button';
 
 export default function FacilityReadiness() {
@@ -34,7 +34,7 @@ export default function FacilityReadiness() {
           
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span>Pharmacy</span> <span className="font-medium text-destructive">Low Stock (Paracetamol)</span></div>
-            <div className="flex justify-between"><span>Wait Time</span> <span className="font-medium text-destructive">> 2 Hours</span></div>
+            <div className="flex justify-between"><span>Wait Time</span> <span className="font-medium text-destructive">&gt; 2 Hours</span></div>
             <div className="mt-4 pt-4 border-t text-xs">
               AI has temporarily stopped routine routing to this facility.
             </div>
