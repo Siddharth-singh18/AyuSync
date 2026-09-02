@@ -19,18 +19,28 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     // Placeholder for your frontend URL to restrict Socket.io connections
-    origin: process.env.FRONTEND_URL || '*', 
+    origin: process.env.FRONTEND_URL || '*',
     methods: ['GET', 'POST']
   }
 });
 
 // Middlewares
-app.use(cors());
+app.use(cors({ origin: ['http://localhost:5175', 'http://localhost:5173', 'http://localhost:3000'] }));
 app.use(express.json());
 
 // ---------------------------------------------------------
 // REST Endpoints
 // ---------------------------------------------------------
+
+import authRoutes from './modules/auth/auth.routes';
+import patientRoutes from './modules/patients/patient.routes';
+import assessmentRoutes from './modules/assessments/assessment.routes';
+import facilityRoutes from './modules/facilities/facility.routes';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/assessments', assessmentRoutes);
+app.use('/api/facilities', facilityRoutes);
 
 // Health check and DB connection verification
 app.get('/health', async (req, res) => {
