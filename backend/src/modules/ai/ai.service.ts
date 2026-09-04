@@ -9,35 +9,37 @@ export const analyzeAssessment = async (assessmentId: string, doctorId: string) 
   try {
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      include: { symptoms: true }
+      include: { symptoms: true, encounter: { include: { vitals: true } } }
     });
 
     if (!assessment) return;
 
-    // Send to Python FastAPI AI service
-    /*
-    const response = await axios.post(`${AI_SERVICE_URL}/analyze`, {
-      symptoms: assessment.symptoms,
-      vitals: assessment.vitals
-    });
-    */
-    
-    // Mocking response for now until Python service is up
-    const aiResponse = {
-      urgencyScore: 8,
-      recommendedAction: 'URGENT',
-      explanation: 'High fever (102F) combined with severe cough over 5 days suggests possible lower respiratory tract infection requiring immediate evaluation.',
-      confidence: 92,
-      modelName: 'ayusync-triage-v1.2'
-    };
+    let urgencyCategory = 'ROUTINE';
+    let reasons = ['System fallback due to AI timeout'];
+    let confidence = 0.5;
+
+    try {
+      // Send to Python FastAPI AI service with a strict timeout
+      const response = await axios.post(`${AI_SERVICE_URL}/triage`, {
+        patientId: assessment.patientId,
+        symptoms: assessment.symptoms,
+        vitals: assessment.encounter?.vitals || []
+      }, { timeout: 5000 });
+      
+      urgencyCategory = response.data.urgencyCategory;
+      reasons = response.data.reasons;
+      confidence = response.data.confidence;
+    } catch (err) {
+      console.error('AI Triage API failed, using fallback:', err);
+    }
 
     // 41. EXPLAINABLE TRIAGE DB RECORD
     const aiRecommendation = await prisma.aIRecommendation.create({
       data: {
         assessmentId,
-        urgencyCategory: aiResponse.recommendedAction,
-        reasons: [aiResponse.explanation],
-        confidence: aiResponse.confidence
+        urgencyCategory,
+        reasons,
+        confidence
       }
     });
 

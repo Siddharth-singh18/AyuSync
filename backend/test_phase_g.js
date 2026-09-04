@@ -155,6 +155,14 @@ async function runTests() {
     res = await axios.put(`${API_URL}/facilities/${facilityId}/availability`, { status: 'OVERCAPACITY', readinessScore: 85 }, { headers: { Authorization: `Bearer ${workerToken}` }});
     console.log('[PASS] 18. Facility availability update ->', res.status);
 
+    // Create encounter to test assessment
+    res = await axios.post(`${API_URL}/patients/encounter`, {
+        patientId,
+        facilityId,
+        type: 'CLINIC_VISIT'
+    }, { headers: { Authorization: `Bearer ${workerToken}` }});
+    encounterId = res.data.id;
+
     // 19. Assessment creation
     if (encounterId) {
         res = await axios.post(`${API_URL}/assessments`, {

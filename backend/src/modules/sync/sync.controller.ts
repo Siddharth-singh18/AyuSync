@@ -25,6 +25,12 @@ export const processSyncBatch = async (req: Request, res: Response) => {
           // Dynamic handling based on entity (Assessment, Patient, etc)
           if (entity === 'ASSESSMENT' && action === 'CREATE') {
             await tx.assessment.create({ data: payload });
+          } else if (entity === 'PATIENT' && action === 'CREATE') {
+            await tx.patient.upsert({
+              where: { id: payload.id },
+              update: payload,
+              create: payload
+            });
           }
           // ... handle other entity actions
 

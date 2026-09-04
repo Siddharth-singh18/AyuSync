@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
+import { broadcastQueueUpdate } from '../../events/socket';
 
 // 21. QUEUE ENGINE: Explicit queue states
 export const enqueuePatient = async (req: Request, res: Response) => {
@@ -32,8 +33,18 @@ export const enqueuePatient = async (req: Request, res: Response) => {
         doctorId,
         priority: priority ? parseInt(priority) : 0,
         status: 'WAITING'
+      },
+      include: {
+        appointment: true
       }
     });
+
+    if (queueEntry.appointment?.facilityId) {
+      broadcastQueueUpdate(queueEntry.appointment.facilityId, doctorId, {
+        action: 'ENQUEUE',
+        entry: queueEntry
+      });
+    }
 
     res.status(201).json(queueEntry);
   } catch (error) {
@@ -88,8 +99,16 @@ export const updateQueueStatus = async (req: Request, res: Response) => {
 
     const updated = await prisma.queueEntry.update({
       where: { id },
-      data: { status }
+      data: { status },
+      include: { appointment: true }
     });
+
+    if (updated.appointment?.facilityId) {
+      broadcastQueueUpdate(updated.appointment.facilityId, updated.doctorId, {
+        action: 'UPDATE_STATUS',
+        entry: updated
+      });
+    }
 
     res.json(updated);
   } catch (error) {

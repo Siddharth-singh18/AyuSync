@@ -1,48 +1,96 @@
 # AyuSync: Rural Healthcare Orchestration Platform (SIH 2026)
 
-AyuSync is a monorepo platform featuring an offline-first frontline worker app, an explainable AI triage system, and a closed-loop real-time doctor dashboard.
+AyuSync is a highly integrated, offline-first healthcare orchestration platform designed to bridge the gap between rural frontline healthcare workers (ASHA/ANM) and district-level specialist facilities.
 
-## System Architecture
+## 1. Project Overview
+AyuSync transforms fragmented healthcare delivery into a cohesive, closed-loop care journey. It ensures that rural patients receive timely assessments, intelligent triage, and guaranteed follow-ups through a robust state-machine driven architecture.
 
-- **App**: Flutter offline-first application for ASHA workers. Uses SQLite for local persistence and background sync queues.
-- **Web**: React.js + TypeScript dashboard for doctors, receiving real-time triage updates via Socket.io.
-- **Backend**: Node.js + Express + Socket.io + PostgreSQL (Prisma). Handles closed-loop referrals and event broadcasting.
-- **AI Service**: Python FastAPI microservice that processes symptom payloads and returns explainable triage intelligence.
+## 2. Problem
+Rural healthcare suffers from disjointed systems, lack of connectivity, and manual follow-ups, leading to "leaky" care journeys where patients are lost between referral facilities.
 
-## Closed-Loop Referral Data Flow
-1. **ASHA Worker** submits patient data offline in the Flutter app.
-2. App syncs data to the **Node.js API** when online.
-3. Node API requests triage analysis from the **Python AI Service**.
-4. Node API broadcasts the structured referral to the **React Web UI** (Doctor Dashboard).
-5. Doctor assigns a counter-task, which is synced back to the ASHA Worker's app.
+## 3. Solution
+AyuSync provides an end-to-end connected ecosystem featuring offline-first mobile data collection, AI-driven triage, real-time facility dashboards, and automated care-gap detection to ensure zero patients are lost in transition.
 
-## Development Setup
+## 4. Architecture
+- **App (Mobile)**: Flutter offline-first application for ASHA workers using `sqflite` and `connectivity_plus` for intelligent background syncing.
+- **Web (Dashboard)**: React.js + TypeScript SPA with `Dexie.js` for offline queue management and WebSockets for real-time updates.
+- **Backend**: Node.js + Express + Socket.io + PostgreSQL (Prisma). Handles strict RBAC, data isolation, and state machine validation.
+- **AI Service**: Python FastAPI microservice utilizing heuristic/LLM models for explainable triage and intelligent facility routing.
 
-### Prerequisites
-- Docker & Docker Compose
-- Node.js (v18+)
-- Python 3.10+
-- Flutter SDK (v3.19+)
+## 5. User Roles
+- **Worker (ASHA/ANM)**: Registers patients, conducts assessments offline, and manages follow-ups.
+- **Doctor / Specialist**: Views real-time queues, conducts consultations, and triggers counter-referrals.
+- **Facility Admin**: Monitors readiness, capacity, and analytics.
 
-### Running the Services Locally
+## 6. Complete Feature List
+- ✅ Offline Patient Registration & Sync
+- ✅ Real-time Doctor Queue
+- ✅ Appointment Double-Booking Prevention
+- ✅ Explainable AI Triage
+- ✅ Intelligent Routing Engine
+- ✅ Referral State Machine
+- ✅ Automated Counter-Referrals
+- ✅ Care-Gap Detection (Background Jobs)
+- ✅ Role-Based Access Control
+- ✅ Automated Notifications
 
-We use Docker Compose to spin up the Backend, AI Service, and PostgreSQL database.
+## 7. AI Architecture
+The Python FastAPI service analyzes symptoms and vitals to generate a structured `TriageResponse` (Urgency, Reasons, Confidence, Missing Info). The Node.js backend features strict timeout-fallback logic to gracefully degrade if the AI service is unreachable.
 
-```bash
-# Start backend, DB, and AI microservice
-docker-compose up --build
+## 8. Agentic Architecture
+Future integrations will include controlled Agentic automation where agents observe care-gaps and autonomously draft follow-up tasks, requiring human-in-the-loop approval before execution.
+
+## 9. Offline Architecture
+Web uses `Dexie.js` and Mobile uses `sqflite` to persist data locally during network outages.
+
+## 10. Sync / Conflict Strategy
+Mutations are stored in a local `mutation_queue`. Upon regaining connectivity, batches are sent to `/api/sync`. The backend ensures idempotency via unique `operationId`s and handles conflicts using timestamp comparisons.
+
+## 11. Referral State Machine
+Enforces strict transitions: `CREATED` → `SUBMITTED` → `ACCEPTED` → `SCHEDULED` → `PATIENT_ARRIVED` → `IN_CONSULTATION` → `COUNTER_REFERRED`.
+
+## 12. Care-Gap Engine
+`node-cron` background jobs automatically scan for stuck referrals (>24h) and overdue follow-ups, escalating them into high-priority tasks and triggering notifications.
+
+## 13. Intelligent Routing
+Evaluates facilities based on required services, capacity (`OPEN` vs `OVERCAPACITY`), and computes a readiness score to recommend the optimal destination.
+
+## 14. Facility Readiness
+Admins can update capacity states (`OPEN`, `CLOSED`, `OVERCAPACITY`) and services, instantly affecting the routing engine's decisions.
+
+## 15. Interoperability
+Data models utilize standardized identifiers (`ExternalReference`) to enable future sandbox integration with government ABDM/FHIR systems.
+
+## 16. Security
+Secured via JWT Authentication, expressive Prisma-backed RBAC, and object-level data isolation.
+
+## 17. Testing
+Comprehensive E2E Regression Suite (`test_phase_g.js`) validating the entire lifecycle, including AI timeouts and queue state transitions.
+
+## 18. Setup & Environment Variables
+```env
+# .env (Backend)
+DATABASE_URL="postgresql://user:pass@localhost:5432/ayusync"
+JWT_SECRET="supersecret_ayusync_key_2026"
+AI_SERVICE_URL="http://localhost:8000"
+FRONTEND_URL="http://localhost:5173"
 ```
 
-**Starting the Doctor Dashboard (Web)**
-```bash
-cd web
-npm install
-npm run dev
-```
+## 19. Demo Flow (The Complete Journey)
+1. **Patient Registration** (Offline via App/Web).
+2. **Assessment** captured.
+3. **AI Triage** scores urgency.
+4. **Intelligent Routing** selects facility.
+5. **Appointment** booked safely.
+6. Patient appears on **Real-time Queue**.
+7. **Referral** created to District Hospital.
+8. **Counter-Referral** generated by specialist.
+9. **Follow-up** assigned to ASHA.
+10. **Care-Gap Engine** detects overdue task.
+11. **Task Completed**, Journey Closed.
 
-**Starting the ASHA Worker App (Flutter)**
-```bash
-cd app
-flutter pub get
-flutter run
-```
+## 20. SIH Innovation/Differentiation
+Unlike typical CRUD apps, AyuSync focuses on **Systemic Resilience**—operating flawlessly offline, recovering gracefully from AI outages, and mathematically guaranteeing no patient drops out of the referral loop.
+
+## 21. Limitations & Future Scalability
+Currently, real-time push notifications use internal DB polling/WebSockets. Future iterations will integrate Firebase Cloud Messaging (FCM) and Multi-lingual voice transcription.
