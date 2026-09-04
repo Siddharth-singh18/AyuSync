@@ -25,7 +25,8 @@ export function useRealtimeQueue(doctorId: string) {
     });
 
     // Listen for queue updates
-    newSocket.on('queue.updated', (queueEntry) => {
+    newSocket.on('queue.updated', (payload) => {
+      const queueEntry = payload.entry || payload; // fallback just in case
       setQueue(prev => {
         // Upsert logic for realtime queue
         const exists = prev.find(q => q.id === queueEntry.id);

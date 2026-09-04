@@ -1,70 +1,95 @@
-
-import { Button } from '../components/ui/Button';
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
 
 export default function PredictiveOps() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get('/analytics/dashboard')
+      .then(res => setData(res.data))
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-8">Loading analytics...</div>;
+  if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
+
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Predictive Operations (Supply Chain)</h2>
-        <Button variant="outline">Run Forecasting Model</Button>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Predictive Alert Card */}
-        <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-6 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-orange-400"></div>
-          <h3 className="font-bold text-orange-800 text-lg mb-2">High Risk: Inventory Shortage</h3>
-          <p className="text-sm text-orange-900/80 mb-4 font-medium">Paracetamol 500mg & Broad-spectrum Antibiotics</p>
-          
-          <div className="bg-white/60 rounded p-4 text-sm mb-4 border border-orange-100">
-            <p className="font-semibold text-gray-700 mb-1">AI Context:</p>
-            <p className="text-gray-600">
-              Detected a 140% spike (84 cases) in acute fever-related triages routed to District Hospital A over the last 7 days. Current inventory will deplete in approx 3 days.
-            </p>
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
+      <h2 className="text-2xl font-bold tracking-tight">Facility Analytics & Predictive Operations</h2>
+      
+      {/* ACTUAL METRICS */}
+      <section className="bg-white border rounded-xl p-6 shadow-sm">
+        <h3 className="font-bold text-lg mb-4 text-gray-800 border-b pb-2">ACTUAL: Current Operational Load</h3>
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Total Patients</p>
+            <p className="text-2xl font-bold">{data?.actual?.totalPatients || 0}</p>
           </div>
-
-          <div className="flex gap-3">
-            <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white">Approve Auto-Restock</Button>
-            <Button size="sm" variant="outline" className="border-orange-200 text-orange-800 hover:bg-orange-100">Ignore Alert</Button>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Active Assessments</p>
+            <p className="text-2xl font-bold">{data?.actual?.activeAssessments || 0}</p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Pending Referrals</p>
+            <p className="text-2xl font-bold">{data?.actual?.pendingReferrals || 0}</p>
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-500">Patients in Queue</p>
+            <p className="text-2xl font-bold">{data?.actual?.patientsInQueue || 0}</p>
           </div>
         </div>
+      </section>
 
-        {/* Analytics Card */}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-           <h3 className="font-bold text-lg mb-4">Regional Triage Trends (7 Days)</h3>
-           <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">Respiratory (Cough/Breathlessness)</span>
-                  <span className="text-muted-foreground">+12%</span>
-                </div>
-                <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                  <div className="bg-blue-500 h-full w-[45%]"></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium text-orange-600">Fever / Infection</span>
-                  <span className="text-orange-600 font-bold">+140%</span>
-                </div>
-                <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                  <div className="bg-orange-500 h-full w-[85%]"></div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">Trauma / Injury</span>
-                  <span className="text-muted-foreground">-5%</span>
-                </div>
-                <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                  <div className="bg-green-500 h-full w-[20%]"></div>
-                </div>
-              </div>
-           </div>
+      {/* PREDICTED METRICS */}
+      <section className="bg-orange-50 border border-orange-200 rounded-xl p-6 shadow-sm">
+        <div className="flex justify-between items-start border-b border-orange-200 pb-2 mb-4">
+            <h3 className="font-bold text-lg text-orange-900">PREDICTED: Forecasts & Risks</h3>
+            <div className="text-right text-xs text-orange-700">
+                <p>Model: {data?.predicted?.metadata?.model || 'Unknown'}</p>
+                <p>Generated At: {data?.predicted?.metadata?.generated_at ? new Date(data.predicted.metadata.generated_at).toLocaleString() : 'Unknown'}</p>
+            </div>
         </div>
-      </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+            <div>
+                <h4 className="font-semibold text-orange-800 mb-2">Medicine Stockout Risk</h4>
+                <ul className="space-y-3">
+                    {data?.predicted?.medicine_stockout_risk?.map((risk: any, i: number) => (
+                        <li key={i} className="bg-white/80 p-3 rounded shadow-sm border border-orange-100 flex justify-between items-center">
+                            <div>
+                                <span className="font-medium text-gray-800">{risk.medicine}</span>
+                                <p className="text-xs text-gray-500">Est. Depletion: {risk.timeframe_days} days</p>
+                            </div>
+                            <div className="text-right">
+                                <span className={`text-xs px-2 py-1 rounded font-bold ${risk.risk === 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                    {risk.risk} RISK
+                                </span>
+                                <p className="text-xs text-gray-400 mt-1">Conf: {risk.confidence * 100}%</p>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div>
+                <h4 className="font-semibold text-orange-800 mb-2">Diagnostic Demand Forecast</h4>
+                <ul className="space-y-3">
+                    {data?.predicted?.diagnostic_demand_forecast?.map((demand: any, i: number) => (
+                        <li key={i} className="bg-white/80 p-3 rounded shadow-sm border border-orange-100 flex justify-between items-center">
+                            <span className="font-medium text-gray-800">{demand.test}</span>
+                            <div className="text-right">
+                                <span className="text-sm font-bold text-orange-700">+{demand.expected_increase_pct}% Demand</span>
+                                <p className="text-xs text-gray-400 mt-1">Conf: {demand.confidence * 100}%</p>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+      </section>
     </div>
   );
 }

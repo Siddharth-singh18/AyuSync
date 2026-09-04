@@ -15,14 +15,10 @@ const prisma = new PrismaClient();
 const app = express();
 const httpServer = createServer(app);
 
+import { initSocket } from './events/socket';
+
 // Initialize Socket.io
-const io = new Server(httpServer, {
-  cors: {
-    // Placeholder for your frontend URL to restrict Socket.io connections
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST']
-  }
-});
+const io = initSocket(httpServer);
 
 // Middlewares
 app.use(cors({ origin: ['http://localhost:5175', 'http://localhost:5173', 'http://localhost:3000'] }));
@@ -36,11 +32,21 @@ import authRoutes from './modules/auth/auth.routes';
 import patientRoutes from './modules/patients/patient.routes';
 import assessmentRoutes from './modules/assessments/assessment.routes';
 import facilityRoutes from './modules/facilities/facility.routes';
+import referralRoutes from './modules/referrals/referral.routes';
+import queueRoutes from './modules/queue/queue.routes';
+import appointmentRoutes from './modules/appointments/appointment.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
+import syncRoutes from './modules/sync/sync.routes';
+import { startJobs } from './jobs/caregap.job';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/facilities', facilityRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/queue', queueRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check and DB connection verification
 app.get('/health', async (req, res) => {
@@ -54,27 +60,17 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Sync endpoint placeholder (App -> Backend)
-app.post('/api/sync', async (req, res) => {
-  // Logic to process offline data from the Flutter app
-  res.status(200).json({ message: 'Sync endpoint not implemented yet.' });
-});
+app.use('/api/sync', syncRoutes);
 
 // ---------------------------------------------------------
-// Socket.io Handlers
+// Socket.io Handlers (moved to socket.ts)
 // ---------------------------------------------------------
-io.on('connection', (socket) => {
-  console.log(`New Doctor Dashboard client connected: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`Doctor Dashboard client disconnected: ${socket.id}`);
-  });
-});
 
 // Start the server
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`AyuSync Backend is running on http://localhost:${PORT}`);
+  startJobs();
 });
 
 export { app, prisma, io };

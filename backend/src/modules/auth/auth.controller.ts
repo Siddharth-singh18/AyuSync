@@ -7,6 +7,10 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { phone, password } = req.body;
 
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Phone and password are required' });
+    }
+
     const user = await prisma.user.findUnique({
       where: { phone },
       include: { roles: true }
@@ -29,6 +33,19 @@ export const login = async (req: Request, res: Response) => {
     );
 
     res.json({ token, user: { id: user.id, phone: user.phone, role: primaryRole } });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+export const getDoctors = async (req: Request, res: Response) => {
+  try {
+    const doctors = await prisma.doctor.findMany({
+      include: {
+        user: { select: { id: true, phone: true } }
+      }
+    });
+    res.json(doctors);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
   }

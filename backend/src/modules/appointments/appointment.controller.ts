@@ -5,17 +5,55 @@ export const bookAppointment = async (req: Request, res: Response) => {
   try {
     const { patientId, facilityId, doctorId, scheduledAt } = req.body;
 
-    // 20. APPOINTMENT ENGINE: booking, prevent double booking
-    const existing = await prisma.appointment.findFirst({
+    if (!patientId || !facilityId || !doctorId || !scheduledAt) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Missing required fields' });
+    }
+
+    const parsedDate = new Date(scheduledAt);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Invalid scheduledAt date' });
+    }
+
+    // 1. Validate entities exist
+    const [patient, doctor, facility] = await Promise.all([
+      prisma.patient.findUnique({ where: { id: patientId } }),
+      prisma.doctor.findUnique({ where: { id: doctorId } }),
+      prisma.facility.findUnique({ where: { id: facilityId }, include: { availability: true } })
+    ]);
+
+    if (!patient) return res.status(400).json({ error: 'Bad Request', message: 'Patient not found' });
+    if (!doctor) return res.status(400).json({ error: 'Bad Request', message: 'Doctor not found' });
+    if (!facility) return res.status(400).json({ error: 'Bad Request', message: 'Facility not found' });
+
+    // 2. Check facility availability
+    if (facility.availability && facility.availability.status === 'CLOSED') {
+      return res.status(409).json({ error: 'Conflict', message: 'Facility is currently closed' });
+    }
+
+    // 3. Check for doctor conflicts (exactly at the same time)
+    const existingDoctorAppt = await prisma.appointment.findFirst({
       where: {
         doctorId,
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: parsedDate,
         status: { not: 'CANCELLED' }
       }
     });
 
-    if (existing) {
-      return res.status(409).json({ error: 'Conflict', message: 'Slot already booked' });
+    if (existingDoctorAppt) {
+      return res.status(409).json({ error: 'Conflict', message: 'Doctor is already booked at this time' });
+    }
+
+    // 4. Check for patient conflicts (exactly at the same time)
+    const existingPatientAppt = await prisma.appointment.findFirst({
+      where: {
+        patientId,
+        scheduledAt: parsedDate,
+        status: { not: 'CANCELLED' }
+      }
+    });
+
+    if (existingPatientAppt) {
+      return res.status(409).json({ error: 'Conflict', message: 'Patient already has an appointment at this time' });
     }
 
     const appointment = await prisma.appointment.create({
@@ -23,12 +61,28 @@ export const bookAppointment = async (req: Request, res: Response) => {
         patientId,
         facilityId,
         doctorId,
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: parsedDate,
         status: 'BOOKED'
       }
     });
 
     res.status(201).json(appointment);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+export const getAllAppointments = async (req: Request, res: Response) => {
+  try {
+    const appointments = await prisma.appointment.findMany({
+      orderBy: { scheduledAt: 'asc' },
+      include: {
+        patient: true,
+        doctor: { include: { user: true } },
+        facility: true
+      }
+    });
+    res.json(appointments);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
   }

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
+import { createNotification } from '../notifications/notification.service';
 
 export const createCounterReferral = async (req: Request, res: Response) => {
   try {
@@ -37,6 +38,13 @@ export const createCounterReferral = async (req: Request, res: Response) => {
               status: 'PENDING'
             }
           });
+          // Try to get userId for the worker to send a notification
+          if (assignedWorkerId) {
+            const worker = await tx.worker.findUnique({ where: { id: assignedWorkerId }});
+            if (worker) {
+              await createNotification(worker.userId, 'FOLLOW_UP', `You have been assigned a new follow-up for patient ${referral.patientId}`);
+            }
+          }
         }
       }
 

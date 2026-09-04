@@ -9,6 +9,18 @@ export default function Patients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Registration Form State
+  const [showRegForm, setShowRegForm] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regForm, setRegForm] = useState({
+    name: '',
+    gender: '',
+    age: '',
+    phone: '',
+    village: '',
+    abhaId: ''
+  });
+
   const fetchPatients = async () => {
     try {
       setLoading(true);
@@ -34,12 +46,80 @@ export default function Patients() {
     fetchPatients();
   };
 
+  const handleRegister = async () => {
+    if (!regForm.name || !regForm.gender) {
+      alert('Name and Gender are required.');
+      return;
+    }
+
+    setRegLoading(true);
+    try {
+      const payload = {
+        ...regForm,
+        age: regForm.age ? parseInt(regForm.age) : undefined
+      };
+      await api.post('/patients', payload);
+      setShowRegForm(false);
+      setRegForm({ name: '', gender: '', age: '', phone: '', village: '', abhaId: '' });
+      fetchPatients();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.response?.data?.error || 'Failed to register patient');
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold tracking-tight">Patients</h2>
-        <Button>Register Patient (Mock)</Button>
+        <Button onClick={() => setShowRegForm(true)}>Register Patient</Button>
       </div>
+
+      {showRegForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">Register New Patient</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input type="text" className="w-full border p-2 rounded-md" value={regForm.name} onChange={e => setRegForm({...regForm, name: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                  <select className="w-full border p-2 rounded-md" value={regForm.gender} onChange={e => setRegForm({...regForm, gender: e.target.value})}>
+                    <option value="">Select</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                  <input type="number" className="w-full border p-2 rounded-md" value={regForm.age} onChange={e => setRegForm({...regForm, age: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input type="text" className="w-full border p-2 rounded-md" value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Village</label>
+                <input type="text" className="w-full border p-2 rounded-md" value={regForm.village} onChange={e => setRegForm({...regForm, village: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ABHA ID (Optional)</label>
+                <input type="text" className="w-full border p-2 rounded-md" value={regForm.abhaId} onChange={e => setRegForm({...regForm, abhaId: e.target.value})} />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowRegForm(false)}>Cancel</Button>
+              <Button onClick={handleRegister} disabled={regLoading}>{regLoading ? 'Registering...' : 'Register'}</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 flex gap-4">
         <input 
@@ -78,7 +158,7 @@ export default function Patients() {
             ) : (
               patients.map(p => (
                 <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-gray-500">{p.id.split('-')[0]}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-gray-500">{p.id.substring(0,8)}</td>
                   <td className="px-6 py-4 font-medium text-gray-900">{p.name}</td>
                   <td className="px-6 py-4 text-gray-600">{p.age || '--'} / {p.gender || '--'}</td>
                   <td className="px-6 py-4 text-gray-600">{p.village || '--'}</td>

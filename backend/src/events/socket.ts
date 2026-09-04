@@ -29,6 +29,8 @@ export const initSocket = (server: any) => {
       console.log(`[Socket] Client disconnected: ${socket.id}`);
     });
   });
+
+  return io;
 };
 
 export const getIO = () => {
@@ -40,5 +42,13 @@ export const getIO = () => {
 
 // Helper for broadcasting triage updates directly
 export const broadcastTriageUpdate = (doctorId: string, payload: any) => {
-  getIO().to(`doctor_${doctorId}`).emit('queue.updated', payload);
+  getIO().to(`doctor_${doctorId}`).emit('triage.updated', payload);
+};
+
+// Helper for broadcasting queue updates
+export const broadcastQueueUpdate = (facilityId: string, doctorId: string | null, payload: any) => {
+  getIO().to(`facility_${facilityId}`).emit('queue.updated', payload);
+  if (doctorId) {
+    getIO().to(`doctor_${doctorId}`).emit('queue.updated', payload);
+  }
 };
