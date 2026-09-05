@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class VernacularVoiceInput extends StatefulWidget {
   final Function(String) onTranscriptionResult;
-  
+
   const VernacularVoiceInput({super.key, required this.onTranscriptionResult});
 
   @override
@@ -17,10 +18,9 @@ class _VernacularVoiceInputState extends State<VernacularVoiceInput> {
     setState(() {
       _isListening = !_isListening;
     });
-    
+
     if (_isListening) {
-      // 50. BHASHINI / VOICE INTEGRATION (Mocked)
-      // Call Bhashini API or on-device speech-to-text here
+      // BHASHINI / Vernacular Voice Integration (Mocked Speech Recognition)
       Future.delayed(const Duration(seconds: 2), () {
         if (!mounted) return;
         setState(() {
@@ -34,17 +34,19 @@ class _VernacularVoiceInputState extends State<VernacularVoiceInput> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.05),
+        color: AppColors.sageBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: const Color(0xFFC7DEC8)),
       ),
       child: Row(
         children: [
           DropdownButton<String>(
             value: _currentLanguage,
             underline: const SizedBox(),
+            isDense: true,
+            style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.bold),
             items: const [
               DropdownMenuItem(value: 'hi-IN', child: Text('हिन्दी')),
               DropdownMenuItem(value: 'bn-IN', child: Text('বাংলা')),
@@ -57,21 +59,41 @@ class _VernacularVoiceInputState extends State<VernacularVoiceInput> {
           ),
           const Spacer(),
           Text(
-            _isListening ? 'Listening...' : 'Tap to speak',
+            _isListening ? 'Listening...' : 'Voice Input',
             style: TextStyle(
-              color: _isListening ? Colors.red : Colors.grey.shade700,
-              fontStyle: FontStyle.italic,
+              fontSize: 11,
+              color: _isListening ? Colors.red : AppColors.forest,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 12),
-          FloatingActionButton.small(
-            onPressed: _toggleListening,
-            backgroundColor: _isListening ? Colors.red : Colors.blue,
-            elevation: 0,
-            child: Icon(_isListening ? Icons.stop : Icons.mic, color: Colors.white),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: _toggleListening,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isListening ? Colors.red : AppColors.forest,
+              ),
+              child: Icon(_isListening ? Icons.stop_rounded : Icons.mic_rounded, color: Colors.white, size: 16),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class VoiceInputWidget extends StatelessWidget {
+  final Function(String) onTranscriptReady;
+
+  const VoiceInputWidget({super.key, required this.onTranscriptReady});
+
+  @override
+  Widget build(BuildContext context) {
+    return VernacularVoiceInput(
+      onTranscriptionResult: onTranscriptReady,
     );
   }
 }
