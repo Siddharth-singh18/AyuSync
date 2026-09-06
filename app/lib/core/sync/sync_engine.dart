@@ -22,14 +22,17 @@ class SyncEngine {
       version: 1,
     );
 
-    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
       if (!results.contains(ConnectivityResult.none)) {
         syncNow();
       }
     });
   }
 
-  Future<void> queueMutation(String id, String entity, String action, Map<String, dynamic> payload) async {
+  Future<void> queueMutation(String id, String entity, String action,
+      Map<String, dynamic> payload) async {
     await _db?.insert(
       'mutation_queue',
       {
@@ -41,9 +44,10 @@ class SyncEngine {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    
-    var connectivityResult = await (Connectivity().checkConnectivity());
-    if (!connectivityResult.contains(ConnectivityResult.none)) {
+
+    var connectivityResult = await Connectivity().checkConnectivity();
+
+    if (connectivityResult != ConnectivityResult.none) {
       syncNow();
     }
   }
@@ -51,7 +55,8 @@ class SyncEngine {
   Future<void> syncNow() async {
     if (_db == null) return;
 
-    final pending = await _db!.query('mutation_queue', where: 'status = ?', whereArgs: ['PENDING']);
+    final pending = await _db!
+        .query('mutation_queue', where: 'status = ?', whereArgs: ['PENDING']);
     if (pending.isEmpty) return;
 
     try {
@@ -60,12 +65,14 @@ class SyncEngine {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'workerId': 'flutter-worker-1',
-          'mutations': pending.map((p) => {
-            'operationId': p['id'],
-            'entity': p['entity'],
-            'action': p['action'],
-            'payload': jsonDecode(p['payload'] as String),
-          }).toList()
+          'mutations': pending
+              .map((p) => {
+                    'operationId': p['id'],
+                    'entity': p['entity'],
+                    'action': p['action'],
+                    'payload': jsonDecode(p['payload'] as String),
+                  })
+              .toList()
         }),
       );
 
@@ -73,7 +80,8 @@ class SyncEngine {
         final data = jsonDecode(response.body);
         for (var res in data['results']) {
           if (res['status'] == 'SUCCESS' || res['status'] == 'ALREADY_SYNCED') {
-            await _db!.update('mutation_queue', {'status': 'SYNCED'}, where: 'id = ?', whereArgs: [res['operationId']]);
+            await _db!.update('mutation_queue', {'status': 'SYNCED'},
+                where: 'id = ?', whereArgs: [res['operationId']]);
           }
         }
       }
