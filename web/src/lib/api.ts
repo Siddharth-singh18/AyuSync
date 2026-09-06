@@ -4,7 +4,7 @@ import axios from 'axios';
  * Normalizes the backend base URL so that both REST and WebSockets
  * can share VITE_API_URL regardless of whether /api or trailing slashes are present.
  */
-const rawUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
+const rawUrl = (import.meta.env.VITE_API_URL || 'https://ayusync-backend.onrender.com').trim();
 
 // Root server host (e.g., https://ayusync-backend.onrender.com)
 export const getBaseServerUrl = (): string => {

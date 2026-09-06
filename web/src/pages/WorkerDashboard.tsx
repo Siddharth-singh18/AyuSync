@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import PageShell from '../components/ui/PageShell';
@@ -23,8 +23,11 @@ export default function WorkerDashboard() {
   const name = user.name || 'Sunita Devi';
 
   useEffect(() => {
-    api.get('/patients?limit=5')
-      .then(r => setPatients(r.data.data || r.data || []))
+    api.get('/patients/search?q=')
+      .then(r => {
+        const list = Array.isArray(r.data) ? r.data : (r.data.data || []);
+        setPatients(list.slice(0, 5));
+      })
       .catch(() => setError('Could not load patients. Check your connection.'))
       .finally(() => setLoading(false));
   }, []);
