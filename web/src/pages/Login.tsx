@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { HeartPulse, Stethoscope, UserCheck, ArrowRight, Eye, EyeOff } from 'lucide-react';
@@ -13,15 +13,21 @@ export default function Login() {
 
   const doLogin = async (ph?: string, pw?: string) => {
     setError(''); setLoading(true);
-    const loginPhone = ph || phone;
-    const loginPass = pw || password;
+    let loginPhone = (ph || phone).trim().replace(/[\s-]/g, '');
+    if (loginPhone.length === 10 && !loginPhone.startsWith('+')) {
+      loginPhone = '+91' + loginPhone;
+    } else if (loginPhone.startsWith('91') && loginPhone.length === 12) {
+      loginPhone = '+' + loginPhone;
+    }
+    const loginPass = (pw || password).trim();
     try {
       const { data } = await api.post('/auth/login', { phone: loginPhone, password: loginPass });
       localStorage.setItem('ayusync_token', data.token);
       localStorage.setItem('ayusync_user', JSON.stringify(data.user));
       navigate(data.user.role === 'WORKER' ? '/worker' : '/dashboard');
     } catch (e: any) {
-      setError(e.response?.data?.error || 'Could not sign in. Please check your credentials.');
+      const serverMsg = e.response?.data?.message || e.response?.data?.error;
+      setError(serverMsg || (e.message ? `${e.message} - please check backend connection` : 'Could not sign in. Please check your credentials.'));
     } finally { setLoading(false); }
   };
 
@@ -109,7 +115,12 @@ export default function Login() {
             <p className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide ">Demo Access</p>
             <div className="grid grid-cols-2 gap-2.5">
               <button
-                onClick={() => doLogin('+919876543210', 'password123')}
+                type="button"
+                onClick={() => {
+                  setPhone('+919876543210');
+                  setPassword('password123');
+                  doLogin('+919876543210', 'password123');
+                }}
                 className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/50 transition-all text-left group"
               >
                 <div className="w-8 h-8 rounded-lg bg-[#1e6641] text-white flex items-center justify-center shrink-0">
@@ -121,7 +132,12 @@ export default function Login() {
                 </div>
               </button>
               <button
-                onClick={() => doLogin('+919998887776', 'password123')}
+                type="button"
+                onClick={() => {
+                  setPhone('+919998887776');
+                  setPassword('password123');
+                  doLogin('+919998887776', 'password123');
+                }}
                 className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/50 transition-all text-left group"
               >
                 <div className="w-8 h-8 rounded-lg bg-[#5e7a3e] text-white flex items-center justify-center shrink-0">

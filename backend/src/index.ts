@@ -41,8 +41,8 @@ app.use(cors({
     // Automatically allow all Vercel domains (*.vercel.app)
     if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return callback(null, true);
 
-    // Allow local development ports
-    if (/^http:\/\/localhost:[0-9]+$/.test(origin)) return callback(null, true);
+    // Allow local development ports (localhost and 127.0.0.1)
+    if (/^http:\/\/(localhost|127\.0\.0\.1):[0-9]+$/.test(origin)) return callback(null, true);
 
     return callback(new Error(`Origin ${origin} not allowed by CORS`));
   },

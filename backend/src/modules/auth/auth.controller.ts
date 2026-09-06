@@ -5,14 +5,25 @@ import { prisma } from '../../index';
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { phone, password } = req.body;
+    let { phone, password } = req.body;
 
     if (!phone || !password) {
       return res.status(400).json({ error: 'Bad Request', message: 'Phone and password are required' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { phone },
+    const cleanPhone = String(phone).trim().replace(/[\s-]/g, '');
+    const phoneVariants = [cleanPhone];
+    if (cleanPhone.length === 10 && !cleanPhone.startsWith('+')) {
+      phoneVariants.push('+91' + cleanPhone);
+    } else if (cleanPhone.startsWith('+91')) {
+      phoneVariants.push(cleanPhone.slice(3));
+    } else if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
+      phoneVariants.push('+' + cleanPhone);
+      phoneVariants.push(cleanPhone.slice(2));
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { phone: { in: phoneVariants } },
       include: { roles: true }
     });
     if (!user || !user.password) {
