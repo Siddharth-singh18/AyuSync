@@ -90,13 +90,26 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+let cachedDoctors: any = null;
+let doctorsCacheTimestamp = 0;
+const DOCTORS_CACHE_TTL_MS = 60000; // 60 seconds
+
 export const getDoctors = async (req: Request, res: Response) => {
   try {
+    const now = Date.now();
+    if (cachedDoctors && now - doctorsCacheTimestamp < DOCTORS_CACHE_TTL_MS) {
+      return res.json(cachedDoctors);
+    }
+
     const doctors = await prisma.doctor.findMany({
       include: {
         user: { select: { id: true, phone: true } }
       }
     });
+
+    cachedDoctors = doctors;
+    doctorsCacheTimestamp = now;
+
     res.json(doctors);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });

@@ -37,12 +37,15 @@ export default function Appointments() {
     }
   };
 
+  const openBookingModal = () => {
+    setShowBookingForm(true);
+    if (patients.length === 0) api.get('/patients/search?q=').then(res => setPatients(res.data)).catch(console.error);
+    if (doctors.length === 0) api.get('/auth/doctors').then(res => setDoctors(res.data)).catch(console.error);
+    if (facilities.length === 0) api.get('/facilities').then(res => setFacilities(res.data.data || res.data || [])).catch(console.error);
+  };
+
   useEffect(() => {
     fetchAppointments();
-    // Fetch dependencies for booking form
-    api.get('/patients/search?q=').then(res => setPatients(res.data)).catch(console.error);
-    api.get('/auth/doctors').then(res => setDoctors(res.data)).catch(console.error);
-    api.get('/facilities').then(res => setFacilities(res.data.data || res.data || [])).catch(console.error);
   }, []);
 
   const validateBooking = () => {
@@ -110,7 +113,7 @@ export default function Appointments() {
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          <Button onClick={() => setShowBookingForm(true)}>Book Slot</Button>
+          <Button onClick={openBookingModal}>Book Slot</Button>
         </div>
       </div>
 

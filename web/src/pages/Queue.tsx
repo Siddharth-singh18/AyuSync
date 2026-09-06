@@ -39,11 +39,15 @@ export default function Queue() {
     } finally { setLoading(false); }
   };
 
+  const openModal = () => {
+    setShowForm(true);
+    if (patients.length === 0) api.get('/patients/search?q=').then(r => setPatients(r.data)).catch(() => {});
+    if (doctors.length === 0) api.get('/auth/doctors').then(r => setDoctors(r.data)).catch(() => {});
+    if (facilities.length === 0) api.get('/facilities').then(r => setFacilities(r.data.data || r.data || [])).catch(() => {});
+  };
+
   useEffect(() => {
     fetchQueue();
-    api.get('/patients/search?q=').then(r => setPatients(r.data)).catch(() => {});
-    api.get('/auth/doctors').then(r => setDoctors(r.data)).catch(() => {});
-    api.get('/facilities').then(r => setFacilities(r.data.data || r.data || [])).catch(() => {});
   }, []);
 
   const addToQueue = async () => {
@@ -101,7 +105,7 @@ export default function Queue() {
           <button onClick={fetchQueue} className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-gray-600">
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-[#1e6641] hover:bg-[#165032] text-white transition-colors">
+          <button onClick={openModal} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-[#1e6641] hover:bg-[#165032] text-white transition-colors">
             <Plus size={14} /> Add patient
           </button>
         </div>

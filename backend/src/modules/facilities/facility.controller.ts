@@ -1,9 +1,18 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
 
+let cachedFacilities: any = null;
+let facilitiesCacheTimestamp = 0;
+const FACILITIES_CACHE_TTL_MS = 30000; // 30 seconds
+
 // 17. FACILITY MODEL: expose operational capabilities
 export const getFacilities = async (req: Request, res: Response) => {
   try {
+    const now = Date.now();
+    if (cachedFacilities && now - facilitiesCacheTimestamp < FACILITIES_CACHE_TTL_MS) {
+      return res.json(cachedFacilities);
+    }
+
     const facilities = await prisma.facility.findMany({
       include: {
         services: true,
@@ -21,6 +30,10 @@ export const getFacilities = async (req: Request, res: Response) => {
         }
       }
     });
+
+    cachedFacilities = facilities;
+    facilitiesCacheTimestamp = now;
+
     res.json(facilities);
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
@@ -61,6 +74,8 @@ export const updateFacilityAvailability = async (req: Request, res: Response) =>
       update: { status: cleanStatus, readinessScore: cleanScore },
       create: { facilityId: id, status: cleanStatus, readinessScore: cleanScore ?? 80 }
     });
+
+    cachedFacilities = null;
 
     res.json(availability);
   } catch (error) {
