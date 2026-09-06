@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
@@ -25,6 +25,8 @@ export default function Queue() {
   const [selDoctor,    setSelDoctor]    = useState('');
   const [selFacility,  setSelFacility]  = useState('');
   const [priority,     setPriority]     = useState('0');
+  const [fieldErrors,  setFieldErrors]  = useState<Record<string, string>>({});
+  const [modalError,   setModalError]   = useState('');
 
   const fetchQueue = async () => {
     try {
@@ -45,14 +47,38 @@ export default function Queue() {
   }, []);
 
   const addToQueue = async () => {
-    if (!selPatient || !selFacility) { setError('Please select a patient and clinic.'); return; }
+    setModalError('');
+    const errors: Record<string, string> = {};
+    if (!selPatient) errors.selPatient = 'Please select a patient.';
+    if (!selFacility) errors.selFacility = 'Please select a clinic or facility.';
+    
+    const prioNum = parseInt(priority, 10);
+    if (isNaN(prioNum) || prioNum < 0 || prioNum > 10) {
+      errors.priority = 'Priority must be a number between 0 and 10.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await api.post('/queue', { patientId: selPatient, doctorId: selDoctor || undefined, facilityId: selFacility, priority: parseInt(priority) });
-      setShowForm(false); setSelPatient(''); setSelDoctor(''); setPriority('0');
+      await api.post('/queue', {
+        patientId: selPatient,
+        doctorId: selDoctor || undefined,
+        facilityId: selFacility,
+        priority: prioNum
+      });
+      setShowForm(false);
+      setSelPatient('');
+      setSelDoctor('');
+      setSelFacility('');
+      setPriority('0');
+      setFieldErrors({});
       await fetchQueue();
     } catch (e: any) {
-      setError(e.response?.data?.error || e.response?.data?.message || 'Could not add patient to queue.');
+      setModalError(e.response?.data?.error || e.response?.data?.message || 'Could not add patient to queue.');
     } finally { setSubmitting(false); }
   };
 
@@ -154,22 +180,43 @@ export default function Queue() {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h3 className="text-base font-bold text-gray-900">Add patient to today's queue</h3>
-                <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+                <button onClick={() => { setShowForm(false); setFieldErrors({}); setModalError(''); }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"><X size={16} /></button>
               </div>
               <div className="p-6 space-y-4">
+                {modalError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+                    {modalError}
+                  </div>
+                )}
                 <div>
                   <label className={LABEL}>Patient *</label>
-                  <select className={INPUT} value={selPatient} onChange={e => setSelPatient(e.target.value)}>
+                  <select
+                    className={`${INPUT} ${fieldErrors.selPatient ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={selPatient}
+                    onChange={e => {
+                      setSelPatient(e.target.value);
+                      if (fieldErrors.selPatient) setFieldErrors(prev => ({ ...prev, selPatient: '' }));
+                    }}
+                  >
                     <option value="">Select patient</option>
                     {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {fieldErrors.selPatient && <p className="text-xs text-red-500 mt-1">{fieldErrors.selPatient}</p>}
                 </div>
                 <div>
                   <label className={LABEL}>Clinic *</label>
-                  <select className={INPUT} value={selFacility} onChange={e => setSelFacility(e.target.value)}>
+                  <select
+                    className={`${INPUT} ${fieldErrors.selFacility ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={selFacility}
+                    onChange={e => {
+                      setSelFacility(e.target.value);
+                      if (fieldErrors.selFacility) setFieldErrors(prev => ({ ...prev, selFacility: '' }));
+                    }}
+                  >
                     <option value="">Select clinic</option>
                     {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
+                  {fieldErrors.selFacility && <p className="text-xs text-red-500 mt-1">{fieldErrors.selFacility}</p>}
                 </div>
                 <div>
                   <label className={LABEL}>Doctor <span className="font-normal text-gray-400">(optional)</span></label>
@@ -180,14 +227,22 @@ export default function Queue() {
                 </div>
                 <div>
                   <label className={LABEL}>Urgency</label>
-                  <select className={INPUT} value={priority} onChange={e => setPriority(e.target.value)}>
+                  <select
+                    className={`${INPUT} ${fieldErrors.priority ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={priority}
+                    onChange={e => {
+                      setPriority(e.target.value);
+                      if (fieldErrors.priority) setFieldErrors(prev => ({ ...prev, priority: '' }));
+                    }}
+                  >
                     <option value="0">Routine</option>
                     <option value="1">Urgent</option>
                   </select>
+                  {fieldErrors.priority && <p className="text-xs text-red-500 mt-1">{fieldErrors.priority}</p>}
                 </div>
               </div>
               <div className="px-6 pb-6 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setShowForm(false); setFieldErrors({}); setModalError(''); }}>Cancel</Button>
                 <Button onClick={addToQueue} disabled={submitting} className="bg-[#1e6641] hover:bg-[#165032] text-white">
                   {submitting ? 'Adding…' : 'Add to queue'}
                 </Button>

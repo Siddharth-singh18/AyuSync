@@ -9,13 +9,25 @@ export const enqueuePatient = async (req: Request, res: Response) => {
 
     let finalApptId = appointmentId;
 
-    // Create a walk-in appointment if only patientId is provided
+    // Validate entities if creating a walk-in appointment
     if (!finalApptId && patientId && facilityId) {
+      const [patientExists, facilityExists] = await Promise.all([
+        prisma.patient.findUnique({ where: { id: patientId } }),
+        prisma.facility.findUnique({ where: { id: facilityId } })
+      ]);
+
+      if (!patientExists) {
+        return res.status(404).json({ error: 'Not Found', message: 'Patient not found' });
+      }
+      if (!facilityExists) {
+        return res.status(404).json({ error: 'Not Found', message: 'Facility not found' });
+      }
+
       const walkIn = await prisma.appointment.create({
         data: {
           patientId,
           facilityId,
-          doctorId,
+          doctorId: doctorId || null,
           scheduledAt: new Date(),
           status: 'BOOKED'
         }
@@ -27,11 +39,13 @@ export const enqueuePatient = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Bad Request', message: 'appointmentId or patientId+facilityId is required' });
     }
 
+    const cleanPriority = Math.max(0, Math.min(100, parseInt(String(priority ?? 0), 10) || 0));
+
     const queueEntry = await prisma.queueEntry.create({
       data: {
         appointmentId: finalApptId,
-        doctorId,
-        priority: priority ? parseInt(priority) : 0,
+        doctorId: doctorId || null,
+        priority: cleanPriority,
         status: 'WAITING'
       },
       include: {

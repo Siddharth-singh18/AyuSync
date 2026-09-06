@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
+import { sanitizeString, validateAge, validatePhone, validateEnum } from '../../utils/validators';
 
 // 10. PATIENT RECORD: creation, search, profile, history, timeline
 // 11. ENCOUNTERS: Create explicit encounters
@@ -8,10 +9,46 @@ export const createPatient = async (req: Request, res: Response) => {
   try {
     const { name, dob, age, gender, village, phone, abhaId } = req.body;
     
-    // 6. PATIENT IDENTITY: Prevent duplicate patients.
+    // Validate Patient Name
+    const nameCheck = sanitizeString(name, 2, 100);
+    if (!nameCheck.valid) {
+      return res.status(400).json({ error: 'Bad Request', message: `Patient name: ${nameCheck.error}` });
+    }
+
+    // Validate Gender
+    const genderCheck = validateEnum(gender ? String(gender).toUpperCase() : '', ['MALE', 'FEMALE', 'OTHER'] as const, 'Gender');
+    if (!genderCheck.valid) {
+      return res.status(400).json({ error: 'Bad Request', message: genderCheck.error });
+    }
+
+    // Validate Age
+    const ageCheck = validateAge(age);
+    if (!ageCheck.valid) {
+      return res.status(400).json({ error: 'Bad Request', message: ageCheck.error });
+    }
+
+    // Validate Phone (optional)
+    let validatedPhone: string | undefined = undefined;
+    if (phone) {
+      const phoneCheck = validatePhone(phone);
+      if (!phoneCheck.valid) {
+        return res.status(400).json({ error: 'Bad Request', message: phoneCheck.error });
+      }
+      validatedPhone = phoneCheck.normalized;
+    }
+
+    // Validate ABHA ID format & duplicates (optional)
+    let cleanAbha: string | undefined = undefined;
     if (abhaId) {
+      const abhaCheck = sanitizeString(abhaId, 3, 30);
+      if (!abhaCheck.valid) {
+        return res.status(400).json({ error: 'Bad Request', message: `ABHA ID: ${abhaCheck.error}` });
+      }
+      cleanAbha = abhaCheck.value;
+
+      // Prevent duplicate patients with same ABHA ID
       const existing = await prisma.patientIdentifier.findUnique({
-        where: { value: abhaId }
+        where: { value: cleanAbha }
       });
       if (existing) {
         return res.status(409).json({ error: 'Conflict', message: 'Patient with this ABHA ID already exists', candidate: existing.patientId });
@@ -20,16 +57,16 @@ export const createPatient = async (req: Request, res: Response) => {
 
     const patient = await prisma.patient.create({
       data: {
-        name,
+        name: nameCheck.value,
         dob: dob ? new Date(dob) : null,
-        age,
-        gender,
-        village,
-        phone,
-        identifiers: abhaId ? {
+        age: ageCheck.age,
+        gender: genderCheck.value!,
+        village: village ? String(village).trim() : null,
+        phone: validatedPhone,
+        identifiers: cleanAbha ? {
           create: {
             type: 'ABHA',
-            value: abhaId
+            value: cleanAbha
           }
         } : undefined
       }
@@ -97,11 +134,23 @@ export const createEncounter = async (req: Request, res: Response) => {
   try {
     const { patientId, facilityId, type } = req.body;
     
+    if (!patientId || typeof patientId !== 'string') {
+      return res.status(400).json({ error: 'Bad Request', message: 'patientId is required' });
+    }
+
+    const patientExists = await prisma.patient.findUnique({ where: { id: patientId } });
+    if (!patientExists) {
+      return res.status(404).json({ error: 'Not Found', message: 'Patient does not exist' });
+    }
+
+    const typeCheck = validateEnum(type, ['FIELD_VISIT', 'CLINIC_VISIT', 'EMERGENCY', 'HOME_VISIT'] as const, 'Encounter type');
+    const validEncounterType = typeCheck.valid ? typeCheck.value! : 'FIELD_VISIT';
+
     const encounter = await prisma.encounter.create({
       data: {
         patientId,
-        facilityId,
-        type,
+        facilityId: facilityId || null,
+        type: validEncounterType,
         status: 'IN_PROGRESS'
       }
     });

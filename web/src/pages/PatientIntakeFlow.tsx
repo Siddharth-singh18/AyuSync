@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
@@ -39,6 +39,7 @@ export default function PatientIntakeFlow() {
   const [needsAmbulance, setNeedsAmbulance] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [assessment, setAssessment] = useState<{ urgency: string; score: number; tier: string; reasons: string[] } | null>(null);
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     api.get('/facilities').then(r => {
@@ -48,10 +49,85 @@ export default function PatientIntakeFlow() {
     }).catch(() => {});
   }, []);
 
-  const toggleSymptom = (s: string) =>
+  const toggleSymptom = (s: string) => {
+    setStepErrors(prev => { const copy = { ...prev }; delete copy.symptoms; return copy; });
     setSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+
+  const validateStep1 = () => {
+    const errs: Record<string, string> = {};
+    const cleanName = (patient.name || '').trim();
+    if (!cleanName) {
+      errs.name = 'Patient full name is required';
+    } else if (cleanName.length < 2) {
+      errs.name = 'Name must be at least 2 characters long';
+    }
+
+    if (!patient.age) {
+      errs.age = 'Age is required';
+    } else {
+      const ageNum = parseInt(patient.age, 10);
+      if (isNaN(ageNum) || ageNum < 0 || ageNum > 125) {
+        errs.age = 'Enter a valid age between 0 and 125';
+      }
+    }
+
+    if (patient.phone) {
+      const digits = patient.phone.replace(/\D/g, '');
+      if (digits.length < 10) {
+        errs.phone = 'Phone number must be at least 10 digits';
+      }
+    }
+
+    setStepErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateStep2 = () => {
+    const errs: Record<string, string> = {};
+
+    if (vitals.bpSystolic) {
+      const sys = parseFloat(vitals.bpSystolic);
+      if (isNaN(sys) || sys < 50 || sys > 280) {
+        errs.bpSystolic = 'Systolic BP should be 50-280 mmHg';
+      }
+    }
+    if (vitals.bpDiastolic) {
+      const dia = parseFloat(vitals.bpDiastolic);
+      if (isNaN(dia) || dia < 30 || dia > 180) {
+        errs.bpDiastolic = 'Diastolic BP should be 30-180 mmHg';
+      }
+    }
+    if (vitals.spO2) {
+      const spo2 = parseFloat(vitals.spO2);
+      if (isNaN(spo2) || spo2 < 40 || spo2 > 100) {
+        errs.spO2 = 'SpO2 must be 40% - 100%';
+      }
+    }
+    if (vitals.heartRate) {
+      const hr = parseFloat(vitals.heartRate);
+      if (isNaN(hr) || hr < 30 || hr > 250) {
+        errs.heartRate = 'Heart rate should be 30-250 bpm';
+      }
+    }
+    if (vitals.temperature) {
+      const temp = parseFloat(vitals.temperature);
+      if (isNaN(temp) || temp < 85 || temp > 115) {
+        errs.temperature = 'Temperature should be 85-115°F';
+      }
+    }
+
+    if (symptoms.length === 0) {
+      errs.symptoms = 'Please select at least one symptom or complaint';
+    }
+
+    setStepErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const runAssessment = () => {
+    if (!validateStep2()) return;
+
     const spo2 = parseFloat(vitals.spO2) || 98;
     const sys  = parseFloat(vitals.bpSystolic) || 120;
     const temp = parseFloat(vitals.temperature) || 98.6;
@@ -157,12 +233,34 @@ export default function PatientIntakeFlow() {
           <div className="space-y-4">
             <div>
               <label className={LABEL}>Full name *</label>
-              <input type="text" value={patient.name} onChange={e => setPatient({...patient, name: e.target.value})} placeholder="e.g. Pooja Sharma" className={INPUT} />
+              <input
+                type="text"
+                value={patient.name}
+                onChange={e => {
+                  setStepErrors(prev => { const c = { ...prev }; delete c.name; return c; });
+                  setPatient({...patient, name: e.target.value});
+                }}
+                placeholder="e.g. Pooja Sharma"
+                className={`${INPUT} ${stepErrors.name ? 'border-red-400 bg-red-50/20' : ''}`}
+              />
+              {stepErrors.name && <p className="text-xs text-red-600 mt-1 font-medium">{stepErrors.name}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={LABEL}>Age *</label>
-                <input type="number" value={patient.age} onChange={e => setPatient({...patient, age: e.target.value})} placeholder="28" className={INPUT} />
+                <input
+                  type="number"
+                  min="0"
+                  max="125"
+                  value={patient.age}
+                  onChange={e => {
+                    setStepErrors(prev => { const c = { ...prev }; delete c.age; return c; });
+                    setPatient({...patient, age: e.target.value});
+                  }}
+                  placeholder="28"
+                  className={`${INPUT} ${stepErrors.age ? 'border-red-400 bg-red-50/20' : ''}`}
+                />
+                {stepErrors.age && <p className="text-xs text-red-600 mt-1 font-medium">{stepErrors.age}</p>}
               </div>
               <div>
                 <label className={LABEL}>Gender</label>
@@ -175,7 +273,17 @@ export default function PatientIntakeFlow() {
             </div>
             <div>
               <label className={LABEL}>Phone number</label>
-              <input type="tel" value={patient.phone} onChange={e => setPatient({...patient, phone: e.target.value})} placeholder="+919876543210" className={INPUT} />
+              <input
+                type="tel"
+                value={patient.phone}
+                onChange={e => {
+                  setStepErrors(prev => { const c = { ...prev }; delete c.phone; return c; });
+                  setPatient({...patient, phone: e.target.value});
+                }}
+                placeholder="+919876543210"
+                className={`${INPUT} ${stepErrors.phone ? 'border-red-400 bg-red-50/20' : ''}`}
+              />
+              {stepErrors.phone && <p className="text-xs text-red-600 mt-1 font-medium">{stepErrors.phone}</p>}
             </div>
             <div>
               <label className={LABEL}>Village / Ward</label>
@@ -188,7 +296,7 @@ export default function PatientIntakeFlow() {
           </div>
 
           <div className="pt-2 flex justify-end">
-            <Button onClick={() => { if (!patient.name) setPatient({...patient, name: 'Pooja Sharma', age: '28'}); setStep(2); }} className="bg-[#1e6641] hover:bg-[#165032] text-white flex items-center gap-2 h-11 px-6">
+            <Button onClick={() => { if (validateStep1()) { setStepErrors({}); setStep(2); } }} className="bg-[#1e6641] hover:bg-[#165032] text-white flex items-center gap-2 h-11 px-6">
               Next: Record measurements <ArrowRight size={16} />
             </Button>
           </div>
@@ -268,6 +376,16 @@ export default function PatientIntakeFlow() {
             {symptoms.length > 0 && (
               <p className="text-xs text-[#1e6641] mt-2">{symptoms.length} symptom{symptoms.length > 1 ? 's' : ''} selected</p>
             )}
+            {stepErrors.symptoms && (
+              <p className="text-xs text-red-600 mt-2 font-medium">{stepErrors.symptoms}</p>
+            )}
+            {Object.keys(stepErrors).filter(k => k !== 'symptoms').length > 0 && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 space-y-1">
+                {Object.values(stepErrors).filter(msg => msg !== stepErrors.symptoms).map((msg, i) => (
+                  <p key={i}>• {msg}</p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-4 border-t border-gray-50">
@@ -341,11 +459,20 @@ export default function PatientIntakeFlow() {
           <div className="space-y-4">
             <div>
               <label className={LABEL}>Clinic / hospital *</label>
-              <select value={selectedFacility} onChange={e => setSelectedFacility(e.target.value)} className={INPUT}>
+              <select
+                value={selectedFacility}
+                onChange={e => {
+                  setSelectedFacility(e.target.value);
+                  setStepErrors(prev => { const c = { ...prev }; delete c.facility; return c; });
+                }}
+                className={`${INPUT} ${stepErrors.facility ? 'border-red-400 bg-red-50/20' : ''}`}
+              >
+                <option value="">-- Choose a clinic or hospital --</option>
                 {facilities.map(f => (
                   <option key={f.id} value={f.id}>{f.name} ({f.type})</option>
                 ))}
               </select>
+              {stepErrors.facility && <p className="text-xs text-red-600 mt-1 font-medium">{stepErrors.facility}</p>}
             </div>
             <div>
               <label className={LABEL}>Notes for the doctor <span className="font-normal text-gray-400">(optional)</span></label>
@@ -379,7 +506,17 @@ export default function PatientIntakeFlow() {
             <Button variant="outline" onClick={() => setStep(3)} className="flex items-center gap-1.5 text-sm">
               <ArrowLeft size={14} /> Back
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting} className="bg-[#1e6641] hover:bg-[#165032] text-white flex items-center gap-2 h-11 px-6 shadow-sm">
+            <Button
+              onClick={() => {
+                if (!selectedFacility) {
+                  setStepErrors({ facility: 'Please select a receiving clinic or hospital before sending referral.' });
+                  return;
+                }
+                handleSubmit();
+              }}
+              disabled={submitting}
+              className="bg-[#1e6641] hover:bg-[#165032] text-white flex items-center gap-2 h-11 px-6 shadow-sm"
+            >
               <CheckCircle2 size={16} />
               {submitting ? 'Sending referral…' : 'Send referral'}
             </Button>

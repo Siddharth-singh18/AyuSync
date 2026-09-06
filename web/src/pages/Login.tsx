@@ -12,7 +12,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const doLogin = async (ph?: string, pw?: string) => {
-    setError(''); setLoading(true);
+    setError('');
     let loginPhone = (ph || phone).trim().replace(/[\s-]/g, '');
     if (loginPhone.length === 10 && !loginPhone.startsWith('+')) {
       loginPhone = '+91' + loginPhone;
@@ -20,6 +20,27 @@ export default function Login() {
       loginPhone = '+' + loginPhone;
     }
     const loginPass = (pw || password).trim();
+
+    // Client-side validation
+    if (!loginPhone) {
+      setError('Please enter your mobile phone number.');
+      return;
+    }
+    const digitsOnly = loginPhone.replace(/\D/g, '');
+    if (digitsOnly.length < 10) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+    if (!loginPass) {
+      setError('Please enter your password.');
+      return;
+    }
+    if (loginPass.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
     try {
       const { data } = await api.post('/auth/login', { phone: loginPhone, password: loginPass });
       localStorage.setItem('ayusync_token', data.token);

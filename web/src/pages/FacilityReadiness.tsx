@@ -28,14 +28,15 @@ export default function FacilityReadiness() {
   const updateAvailability = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'OPEN' ? 'OVERCAPACITY' : 'OPEN';
     setUpdating(id);
+    setError('');
     try {
       await api.put(`/facilities/${id}/availability`, {
         status: newStatus,
         readinessScore: 80
       });
       await fetchFacilities();
-    } catch {
-      alert('Failed to update availability.');
+    } catch (e: any) {
+      setError(e.response?.data?.error || e.response?.data?.message || 'Failed to update availability.');
     } finally {
       setUpdating(null);
     }

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import PageShell from '../components/ui/PageShell';
@@ -19,6 +19,8 @@ export default function Patients() {
   const [showForm,    setShowForm]    = useState(false);
   const [regLoading,  setRegLoading]  = useState(false);
   const [form, setForm] = useState({ name: '', gender: '', age: '', phone: '', village: '', abhaId: '' });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [modalError, setModalError] = useState('');
 
   const fetchPatients = async (q = search) => {
     try { setLoading(true); setError('');
@@ -30,15 +32,59 @@ export default function Patients() {
 
   useEffect(() => { fetchPatients(''); }, []);
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    if (!form.name.trim() || form.name.trim().length < 2) {
+      errors.name = 'Full name must be at least 2 characters.';
+    }
+    if (!form.gender) {
+      errors.gender = 'Please select a gender.';
+    }
+    if (form.age) {
+      const ageNum = Number(form.age);
+      if (isNaN(ageNum) || ageNum < 0 || ageNum > 125 || !Number.isInteger(ageNum)) {
+        errors.age = 'Age must be a whole number between 0 and 125.';
+      }
+    }
+    if (form.phone.trim()) {
+      const cleaned = form.phone.replace(/[\s\-+]/g, '');
+      const digits = cleaned.startsWith('91') && cleaned.length === 12 ? cleaned.slice(2) : cleaned;
+      if (!/^\d{10}$/.test(digits)) {
+        errors.phone = 'Phone number must be 10 digits.';
+      }
+    }
+    if (form.abhaId.trim()) {
+      const cleanedAbha = form.abhaId.trim();
+      if (!/^\d{2}-\d{4}-\d{4}-\d{4}$|^\d{14}$/.test(cleanedAbha)) {
+        errors.abhaId = 'ABHA ID must be 14 digits (e.g., 91-8844-3321-0012).';
+      }
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleRegister = async () => {
-    if (!form.name || !form.gender) { setError('Name and gender are required.'); return; }
+    setModalError('');
+    if (!validateForm()) return;
     setRegLoading(true);
     try {
-      await api.post('/patients', { ...form, age: form.age ? parseInt(form.age) : undefined });
-      setShowForm(false); setForm({ name: '', gender: '', age: '', phone: '', village: '', abhaId: '' });
+      await api.post('/patients', {
+        name: form.name.trim(),
+        gender: form.gender,
+        age: form.age ? parseInt(form.age, 10) : undefined,
+        phone: form.phone.trim() || undefined,
+        village: form.village.trim() || undefined,
+        abhaId: form.abhaId.trim() || undefined
+      });
+      setShowForm(false);
+      setForm({ name: '', gender: '', age: '', phone: '', village: '', abhaId: '' });
+      setFieldErrors({});
       fetchPatients('');
-    } catch (e: any) { setError(e.response?.data?.message || e.response?.data?.error || 'Could not register patient.'); }
-    finally { setRegLoading(false); }
+    } catch (e: any) {
+      setModalError(e.response?.data?.message || e.response?.data?.error || 'Could not register patient.');
+    } finally {
+      setRegLoading(false);
+    }
   };
 
   const user = JSON.parse(localStorage.getItem('ayusync_user') || '{}');
@@ -131,34 +177,77 @@ export default function Patients() {
         {/* Register modal */}
         {showForm && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
                 <h3 className="text-base font-bold text-gray-900">Register new patient</h3>
-                <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+                <button onClick={() => { setShowForm(false); setFieldErrors({}); setModalError(''); }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"><X size={16} /></button>
               </div>
               <div className="p-6 space-y-4">
+                {modalError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+                    {modalError}
+                  </div>
+                )}
                 <div>
                   <label className={LABEL}>Full name *</label>
-                  <input type="text" className={INPUT} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Pooja Sharma" />
+                  <input
+                    type="text"
+                    className={`${INPUT} ${fieldErrors.name ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={form.name}
+                    onChange={e => {
+                      setForm({...form, name: e.target.value});
+                      if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
+                    }}
+                    placeholder="Pooja Sharma"
+                  />
+                  {fieldErrors.name && <p className="text-xs text-red-500 mt-1">{fieldErrors.name}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={LABEL}>Gender *</label>
-                    <select className={INPUT} value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
+                    <select
+                      className={`${INPUT} ${fieldErrors.gender ? 'border-red-400 focus:ring-red-400' : ''}`}
+                      value={form.gender}
+                      onChange={e => {
+                        setForm({...form, gender: e.target.value});
+                        if (fieldErrors.gender) setFieldErrors(prev => ({ ...prev, gender: '' }));
+                      }}
+                    >
                       <option value="">Select</option>
                       <option value="FEMALE">Female</option>
                       <option value="MALE">Male</option>
                       <option value="OTHER">Other</option>
                     </select>
+                    {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
                   </div>
                   <div>
                     <label className={LABEL}>Age</label>
-                    <input type="number" className={INPUT} value={form.age} onChange={e => setForm({...form, age: e.target.value})} placeholder="28" />
+                    <input
+                      type="number"
+                      className={`${INPUT} ${fieldErrors.age ? 'border-red-400 focus:ring-red-400' : ''}`}
+                      value={form.age}
+                      onChange={e => {
+                        setForm({...form, age: e.target.value});
+                        if (fieldErrors.age) setFieldErrors(prev => ({ ...prev, age: '' }));
+                      }}
+                      placeholder="28"
+                    />
+                    {fieldErrors.age && <p className="text-xs text-red-500 mt-1">{fieldErrors.age}</p>}
                   </div>
                 </div>
                 <div>
                   <label className={LABEL}>Phone number</label>
-                  <input type="text" className={INPUT} value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+919876543210" />
+                  <input
+                    type="text"
+                    className={`${INPUT} ${fieldErrors.phone ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={form.phone}
+                    onChange={e => {
+                      setForm({...form, phone: e.target.value});
+                      if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: '' }));
+                    }}
+                    placeholder="+919876543210"
+                  />
+                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
                 </div>
                 <div>
                   <label className={LABEL}>Village / Ward</label>
@@ -166,11 +255,21 @@ export default function Patients() {
                 </div>
                 <div>
                   <label className={LABEL}>ABHA / Health ID <span className="font-normal text-gray-400">(optional)</span></label>
-                  <input type="text" className={INPUT} value={form.abhaId} onChange={e => setForm({...form, abhaId: e.target.value})} placeholder="91-8844-3321-0012" />
+                  <input
+                    type="text"
+                    className={`${INPUT} ${fieldErrors.abhaId ? 'border-red-400 focus:ring-red-400' : ''}`}
+                    value={form.abhaId}
+                    onChange={e => {
+                      setForm({...form, abhaId: e.target.value});
+                      if (fieldErrors.abhaId) setFieldErrors(prev => ({ ...prev, abhaId: '' }));
+                    }}
+                    placeholder="91-8844-3321-0012"
+                  />
+                  {fieldErrors.abhaId && <p className="text-xs text-red-500 mt-1">{fieldErrors.abhaId}</p>}
                 </div>
               </div>
               <div className="px-6 pb-6 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setShowForm(false); setFieldErrors({}); setModalError(''); }}>Cancel</Button>
                 <Button onClick={handleRegister} disabled={regLoading} className="bg-[#1e6641] hover:bg-[#165032] text-white">
                   {regLoading ? 'Saving…' : 'Save patient'}
                 </Button>

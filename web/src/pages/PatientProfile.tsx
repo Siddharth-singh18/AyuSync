@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
@@ -37,6 +37,7 @@ export default function PatientProfile() {
   const [error,     setError]     = useState('');
   const [showForm,  setShowForm]  = useState(false);
   const [symptomInput, setSymptomInput] = useState('');
+  const [assError,  setAssError]  = useState('');
   const [saving,    setSaving]    = useState(false);
 
   const fetch = async () => {
@@ -50,18 +51,30 @@ export default function PatientProfile() {
   useEffect(() => { if (id) fetch(); }, [id]);
 
   const addAssessment = async () => {
-    if (!symptomInput.trim() || !patient?.encounters?.[0]?.id) return;
+    setAssError('');
+    const trimmed = symptomInput.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setAssError('Symptom name must be at least 2 characters.');
+      return;
+    }
     setSaving(true);
     try {
       await api.post('/assessments', {
-        patientId: patient.id, encounterId: patient.encounters[0].id,
-        symptoms: [{ name: symptomInput, duration: '1 day', severity: 'MODERATE' }],
-        vitals: [], provenance: 'WORKER_RECORDED'
+        patientId: patient.id,
+        encounterId: patient?.encounters?.[0]?.id || undefined,
+        symptoms: [{ name: trimmed, duration: '1 day', severity: 'MODERATE' }],
+        vitals: [],
+        provenance: 'WORKER_RECORDED'
       });
-      setSymptomInput(''); setShowForm(false);
+      setSymptomInput('');
+      setAssError('');
+      setShowForm(false);
       await fetch();
-    } catch { setError('Could not save assessment. Make sure an encounter exists for this patient.'); }
-    finally { setSaving(false); }
+    } catch (e: any) {
+      setAssError(e.response?.data?.error || e.response?.data?.message || 'Could not save assessment note.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const transition = async (refId: string, next: string) => {
@@ -194,36 +207,48 @@ export default function PatientProfile() {
           )}
 
           {/* Add assessment */}
-          {patient.encounters?.length > 0 && (
-            <div className="pt-3 border-t border-gray-50">
-              {!showForm ? (
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-[#1e6641] hover:underline"
-                >
-                  <Plus size={13} /> Add assessment note
-                </button>
-              ) : (
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-900">New assessment</span>
-                    <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
-                  </div>
-                  <input
-                    type="text" placeholder="Main symptom (e.g. High Fever)"
-                    value={symptomInput} onChange={e => setSymptomInput(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e6641] focus:outline-none bg-white"
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={addAssessment} disabled={saving || !symptomInput.trim()} className="bg-[#1e6641] hover:bg-[#165032] text-white text-xs">
-                      {saving ? 'Saving…' : 'Save'}
-                    </Button>
-                    <Button onClick={() => setShowForm(false)} variant="outline" className="text-xs">Cancel</Button>
-                  </div>
+          <div className="pt-3 border-t border-gray-50">
+            {!showForm ? (
+              <button
+                onClick={() => { setShowForm(true); setAssError(''); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#1e6641] hover:underline"
+              >
+                <Plus size={13} /> Add assessment note
+              </button>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-900">New assessment</span>
+                  <button onClick={() => { setShowForm(false); setAssError(''); }} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
                 </div>
-              )}
-            </div>
-          )}
+                {assError && (
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-medium">
+                    {assError}
+                  </div>
+                )}
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Main symptom (e.g. High Fever)"
+                    value={symptomInput}
+                    onChange={e => {
+                      setSymptomInput(e.target.value);
+                      if (assError) setAssError('');
+                    }}
+                    className={`w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e6641] focus:outline-none bg-white ${
+                      assError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200'
+                    }`}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={addAssessment} disabled={saving || !symptomInput.trim()} className="bg-[#1e6641] hover:bg-[#165032] text-white text-xs">
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button onClick={() => { setShowForm(false); setAssError(''); }} variant="outline" className="text-xs">Cancel</Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

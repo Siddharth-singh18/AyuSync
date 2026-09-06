@@ -11,7 +11,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Bad Request', message: 'Phone and password are required' });
     }
 
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Password must be at least 6 characters long' });
+    }
+
     const cleanPhone = String(phone).trim().replace(/[\s-]/g, '');
+    if (cleanPhone.replace(/\D/g, '').length < 10) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Please enter a valid 10-digit phone number' });
+    }
     const phoneVariants = [cleanPhone];
     if (cleanPhone.length === 10 && !cleanPhone.startsWith('+')) {
       phoneVariants.push('+91' + cleanPhone);
