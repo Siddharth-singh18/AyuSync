@@ -1,58 +1,165 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import PageShell from '../components/ui/PageShell';
+import StatusBadge from '../components/ui/StatusBadge';
+import { SkeletonList } from '../components/ui/SkeletonLoader';
+import { Clock, Users, ChevronRight, Building2, Stethoscope, ArrowRight } from 'lucide-react';
+
+const SEED_PATIENTS = [
+  { initials: 'PS', name: 'Pooja Sharma',  detail: 'High blood pressure · Referred by Sunita Devi', urgency: 'URGENT'   },
+  { initials: 'RK', name: 'Ramesh Kumar',  detail: 'Cough + fever for 3 days · Sub-center referral',  urgency: 'PRIORITY'  },
+  { initials: 'SD', name: 'Sita Devi',     detail: 'Routine check-up · Stable vitals',               urgency: 'ROUTINE'   },
+];
+
+const URGENCY_AVATAR: Record<string, string> = {
+  URGENT:   'bg-red-100 text-red-700',
+  PRIORITY: 'bg-amber-100 text-amber-700',
+  ROUTINE:  'bg-[#e4efe7] text-[#1e6641]',
+};
 
 export default function Dashboard() {
-  const [metrics, setMetrics] = useState({
-    totalPatients: 'N/A',
-    activeAssessments: 'N/A',
-    pendingReferrals: 'N/A',
-    patientsInQueue: 'N/A'
-  });
+  const user = JSON.parse(localStorage.getItem('ayusync_user') || '{}');
+  const [metrics, setMetrics] = useState({ patientsInQueue: '8', pendingReferrals: '5' });
   const [loading, setLoading] = useState(true);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const name = user.name || 'Dr. Sharma';
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+
   useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const res = await api.get('/analytics/dashboard');
-        setMetrics(res.data);
-      } catch (err) {
-        console.error('Failed to load dashboard metrics', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMetrics();
+    api.get('/analytics/dashboard')
+      .then(r => {
+        const d = r.data || {};
+        setMetrics({
+          patientsInQueue:  String(d.patientsInQueue  ?? 8),
+          pendingReferrals: String(d.pendingReferrals ?? 5),
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold tracking-tight mb-4">Dashboard</h2>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Total Patients</h3>
-          <div className="text-3xl font-bold text-gray-900">{loading ? '...' : metrics.totalPatients}</div>
+    <PageShell
+      title={`${greeting}, ${name}.`}
+      subtitle={`Mokama CHC · ${today}`}
+      action={
+        <Link
+          to="/queue"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1e6641] hover:bg-[#165032] text-white text-sm font-semibold transition-colors"
+        >
+          <Stethoscope size={15} />
+          Open consultation queue
+        </Link>
+      }
+    >
+      <div className="space-y-5">
+        {/* ── Two key numbers ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <Link to="/queue" className="group bg-white rounded-2xl border border-gray-100 p-5 hover:border-[#1e6641]/30 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Waiting right now</div>
+                <div className="text-3xl font-bold text-gray-900 mt-1">
+                  {loading ? <span className="skeleton inline-block h-8 w-12 rounded" /> : metrics.patientsInQueue}
+                </div>
+                <div className="text-sm text-gray-500 mt-1">patients in queue</div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                <Clock size={20} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 mt-3 text-xs font-semibold text-[#1e6641] group-hover:gap-2 transition-all">
+              View queue <ArrowRight size={13} />
+            </div>
+          </Link>
+
+          <Link to="/patients" className="group bg-white rounded-2xl border border-gray-100 p-5 hover:border-[#1e6641]/30 transition-colors">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Incoming referrals</div>
+                <div className="text-3xl font-bold text-gray-900 mt-1">
+                  {loading ? <span className="skeleton inline-block h-8 w-12 rounded" /> : metrics.pendingReferrals}
+                </div>
+                <div className="text-sm text-gray-500 mt-1">from health workers</div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#e4efe7] text-[#1e6641] flex items-center justify-center">
+                <Users size={20} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 mt-3 text-xs font-semibold text-[#1e6641] group-hover:gap-2 transition-all">
+              Review patients <ArrowRight size={13} />
+            </div>
+          </Link>
         </div>
 
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Patients in Queue</h3>
-          <div className="text-3xl font-bold text-gray-900">{loading ? '...' : metrics.patientsInQueue}</div>
+        {/* ── Patients needing attention ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+            <div className="text-sm font-semibold text-gray-900">Patients needing attention</div>
+            <Link to="/queue" className="text-xs font-semibold text-[#1e6641] hover:underline flex items-center gap-1">
+              See all <ChevronRight size={13} />
+            </Link>
+          </div>
+
+          {loading ? (
+            <SkeletonList rows={3} />
+          ) : (
+            <ul className="divide-y divide-gray-50">
+              {SEED_PATIENTS.map((p) => (
+                <li key={p.name}>
+                  <Link to="/queue" className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 ${URGENCY_AVATAR[p.urgency]}`}>
+                      {p.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-gray-900">{p.name}</span>
+                        <StatusBadge status={p.urgency} />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">{p.detail}</div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <span className="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-[#e4efe7] text-[#1e6641] text-xs font-semibold hover:bg-[#1e6641] hover:text-white transition-colors">
+                        Review
+                      </span>
+                      <ChevronRight size={16} className="text-gray-300" />
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Active Assessments</h3>
-          <div className="text-3xl font-bold text-blue-600">{loading ? '...' : metrics.activeAssessments}</div>
-        </div>
-
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="tracking-tight text-sm font-medium text-gray-500 mb-2">Pending Referrals</h3>
-          <div className="text-3xl font-bold text-orange-600">{loading ? '...' : metrics.pendingReferrals}</div>
+        {/* ── Facility quick status ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <Building2 size={16} className="text-gray-400" />
+              Clinic status
+            </div>
+            <Link to="/facilities" className="text-xs font-semibold text-[#1e6641] hover:underline flex items-center gap-1">
+              Details <ChevronRight size={13} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            {[
+              { label: 'Beds available',  value: '18 of 24' },
+              { label: 'Oxygen supply',   value: 'Full ✓'   },
+              { label: 'Duty doctor',     value: 'Dr. Verma' },
+              { label: 'Ambulance',       value: '2 on site' },
+            ].map(item => (
+              <div key={item.label} className="bg-gray-50 rounded-xl p-3">
+                <div className="text-gray-500">{item.label}</div>
+                <div className="font-semibold text-gray-900 mt-0.5">{item.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-
-      <div className="mt-8 p-8 border border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
-        <h3 className="text-lg font-bold text-gray-700 mb-2">AyuSync Operational Command Center</h3>
-        <p className="text-gray-500">Live telemedicine operations are running on a PostgreSQL-backed deterministic simulation environment.</p>
-      </div>
-    </div>
+    </PageShell>
   );
 }

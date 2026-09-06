@@ -1,75 +1,195 @@
-
-import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import SplashScreen from './components/ui/SplashScreen';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import WorkerDashboard from './pages/WorkerDashboard';
+import PatientIntakeFlow from './pages/PatientIntakeFlow';
+import ReferralSuccess from './pages/ReferralSuccess';
+import CareGaps from './pages/CareGaps';
 import Patients from './pages/Patients';
 import PatientProfile from './pages/PatientProfile';
 import FacilityReadiness from './pages/FacilityReadiness';
 import Queue from './pages/Queue';
-import { Activity, LogOut } from 'lucide-react';
+import {
+  HeartPulse,
+  LogOut,
+  UserCheck,
+  Stethoscope,
+  LayoutDashboard,
+  Users,
+  Clock,
+  Building2,
+  CheckSquare,
+  UserPlus,
+  RefreshCw,
+} from 'lucide-react';
 
+// ─── Shared nav link component ───────────────────────────────────────────────
+function NavLink({ to, exact, children }: { to: string; exact?: boolean; children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const isActive = exact ? pathname === to : pathname.startsWith(to);
+  return (
+    <Link
+      to={to}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        isActive
+          ? 'bg-[#e4efe7] text-[#1e6641]'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
 
-// Protected Route Wrapper
+// ─── Protected shell ─────────────────────────────────────────────────────────
 const ProtectedRoute = () => {
   const token = localStorage.getItem('ayusync_token');
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+  const user   = JSON.parse(localStorage.getItem('ayusync_user') || '{}');
+  const [currentRole, setCurrentRole] = useState<string>(user.role || 'DOCTOR');
+
+  if (!token) return <Navigate to="/login" replace />;
+
+  const isWorker = currentRole === 'WORKER';
+
+  const switchRole = () => {
+    const newRole = isWorker ? 'DOCTOR' : 'WORKER';
+    const updated = { ...user, role: newRole, name: newRole === 'DOCTOR' ? 'Dr. Sharma' : 'Sunita Devi' };
+    localStorage.setItem('ayusync_user', JSON.stringify(updated));
+    setCurrentRole(newRole);
+    window.location.href = newRole === 'WORKER' ? '/worker' : '/dashboard';
+  };
+
+  const displayName = user.name || (isWorker ? 'Sunita Devi' : 'Dr. Sharma');
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-white shadow-sm">
-        <div className="flex h-16 items-center px-4 md:px-6 container mx-auto">
-          <div className="flex items-center gap-2 text-blue-600">
-            <Activity size={24} />
-            <h1 className="text-xl font-bold">AyuSync</h1>
-          </div>
-          <nav className="ml-8 flex gap-4 sm:gap-6">
-            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/dashboard">Dashboard</Link>
-            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/patients">Patients</Link>
-            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/queue">Queue</Link>
-            <Link className="text-sm font-medium hover:text-blue-600 transition-colors" to="/facilities">Facilities</Link>
+    <div className="min-h-screen bg-[#f8f7f3] font-sans text-gray-900">
+      {/* ── Top navigation bar ── */}
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 gap-4">
 
+          {/* Brand */}
+          <Link to={isWorker ? '/worker' : '/dashboard'} className="flex items-center gap-2 shrink-0 group">
+            <div className="w-8 h-8 rounded-lg bg-[#1e6641] text-white flex items-center justify-center group-hover:opacity-90 transition-opacity">
+              <HeartPulse size={18} strokeWidth={2} />
+            </div>
+            <div className="hidden sm:block">
+              <div className="text-sm font-bold text-gray-900 leading-tight">SwasthyaSetu</div>
+              <div className="text-[10px] text-gray-400 leading-tight">AyuSync · Mokama CHC</div>
+            </div>
+          </Link>
+
+          {/* Role-aware navigation */}
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 ml-6">
+            {isWorker ? (
+              <>
+                <NavLink to="/worker" exact><LayoutDashboard size={15} />Home</NavLink>
+                <NavLink to="/patients"><Users size={15} />My Patients</NavLink>
+                <NavLink to="/followups"><CheckSquare size={15} />Today's Tasks</NavLink>
+              </>
+            ) : (
+              <>
+                <NavLink to="/dashboard" exact><LayoutDashboard size={15} />Home</NavLink>
+                <NavLink to="/queue"><Clock size={15} />Patients Waiting</NavLink>
+                <NavLink to="/patients"><Users size={15} />All Patients</NavLink>
+                <NavLink to="/facilities"><Building2 size={15} />Facilities</NavLink>
+              </>
+            )}
           </nav>
-          <div className="ml-auto">
-            <button 
+
+          {/* Right side */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* + New Patient (worker only, persistent CTA) */}
+            {isWorker && (
+              <Link
+                to="/intake"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1e6641] hover:bg-[#16503200] text-white text-sm font-semibold transition-colors"
+                style={{ background: '#1e6641' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#165032')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#1e6641')}
+              >
+                <UserPlus size={14} />
+                New Patient
+              </Link>
+            )}
+
+            {/* Avatar + name */}
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-gray-200">
+              <div className="w-7 h-7 rounded-full bg-[#e4efe7] text-[#1e6641] flex items-center justify-center font-bold text-xs">
+                {displayName.charAt(0)}
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-900 leading-tight">{displayName}</div>
+                <button
+                  onClick={switchRole}
+                  title="Switch between Doctor and Health Worker view"
+                  className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-[#1e6641] transition-colors"
+                >
+                  {isWorker ? <UserCheck size={10} /> : <Stethoscope size={10} />}
+                  {isWorker ? 'Health Worker' : 'Doctor'}
+                  <RefreshCw size={9} className="ml-0.5" />
+                </button>
+              </div>
+            </div>
+
+            <button
               onClick={() => {
                 localStorage.removeItem('ayusync_token');
                 localStorage.removeItem('ayusync_user');
                 window.location.href = '/login';
               }}
-              className="text-sm text-gray-500 hover:text-red-600 flex items-center gap-1 transition-colors"
+              title="Sign out"
+              className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
             >
-              <LogOut size={16} /> Logout
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </header>
-      <main className="container mx-auto p-4 md:p-6 mt-4">
+
+      {/* ── Page content ── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <Outlet />
       </main>
     </div>
   );
 };
 
+// ─── Root app ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [splashDone, setSplashDone] = useState(
+    () => sessionStorage.getItem('spl_shown') === '1'
+  );
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        
-        <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/patients/:id" element={<PatientProfile />} />
-          <Route path="/queue" element={<Queue />} />
-          <Route path="/facilities" element={<FacilityReadiness />} />
-        </Route>
-        
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      {!splashDone && (
+        <SplashScreen onFinish={() => {
+          sessionStorage.setItem('spl_shown', '1');
+          setSplashDone(true);
+        }} />
+      )}
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard"         element={<Dashboard />} />
+            <Route path="/worker"            element={<WorkerDashboard />} />
+            <Route path="/intake"            element={<PatientIntakeFlow />} />
+            <Route path="/referral-success"  element={<ReferralSuccess />} />
+            <Route path="/followups"         element={<CareGaps />} />
+            <Route path="/patients"          element={<Patients />} />
+            <Route path="/patients/:id"      element={<PatientProfile />} />
+            <Route path="/queue"             element={<Queue />} />
+            <Route path="/facilities"        element={<FacilityReadiness />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }

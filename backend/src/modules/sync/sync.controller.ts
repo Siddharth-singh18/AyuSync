@@ -122,33 +122,27 @@ export const pullSyncChanges = async (req: Request, res: Response) => {
       }),
       prisma.referral.findMany({
         where: {
-          updatedAt: { gte: since },
           ...(facilityId ? {
             OR: [
-              { fromFacilityId: facilityId },
-              { toFacilityId: facilityId }
+              { originId: facilityId },
+              { destinationId: facilityId }
             ]
           } : {})
         },
         include: { events: true },
-        take: 100,
-        orderBy: { updatedAt: 'asc' }
+        take: 100
       }),
       prisma.followUp.findMany({
         where: {
-          updatedAt: { gte: since },
           ...(workerId ? { workerId } : {})
         },
-        take: 100,
-        orderBy: { updatedAt: 'asc' }
+        take: 100
       }),
       prisma.task.findMany({
         where: {
-          updatedAt: { gte: since },
           ...(workerId ? { workerId } : {})
         },
-        take: 100,
-        orderBy: { updatedAt: 'asc' }
+        take: 100
       }),
       prisma.notification.findMany({
         where: {

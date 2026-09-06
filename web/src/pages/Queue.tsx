@@ -1,201 +1,201 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Link } from 'react-router-dom';
+import PageShell from '../components/ui/PageShell';
+import StatusBadge from '../components/ui/StatusBadge';
+import InlineError from '../components/ui/InlineError';
+import EmptyState from '../components/ui/EmptyState';
+import { SkeletonList } from '../components/ui/SkeletonLoader';
+import { Clock, RefreshCw, Plus, ChevronRight, X } from 'lucide-react';
+
+const INPUT = 'w-full border border-gray-200 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[#1e6641] focus:outline-none bg-white';
+const LABEL = 'block text-xs font-semibold text-gray-700 mb-1';
 
 export default function Queue() {
-  const [queue, setQueue] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // Form State
+  const [queue,    setQueue]    = useState<any[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [patients, setPatients] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [patients,   setPatients]   = useState<any[]>([]);
+  const [doctors,    setDoctors]    = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
-
-  const [selectedPatient, setSelectedPatient] = useState('');
-  const [selectedDoctor, setSelectedDoctor] = useState('');
-  const [selectedFacility, setSelectedFacility] = useState('');
-  const [priority, setPriority] = useState('0');
+  const [selPatient,   setSelPatient]   = useState('');
+  const [selDoctor,    setSelDoctor]    = useState('');
+  const [selFacility,  setSelFacility]  = useState('');
+  const [priority,     setPriority]     = useState('0');
 
   const fetchQueue = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/queue');
-      setQueue(res.data);
+      const r = await api.get('/queue');
+      setQueue(r.data);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch queue');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'Could not load the queue. Try refreshing.');
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
     fetchQueue();
-    // Fetch dependencies
-    api.get('/patients/search?q=').then(res => setPatients(res.data)).catch(console.error);
-    api.get('/auth/doctors').then(res => setDoctors(res.data)).catch(console.error);
-    api.get('/facilities').then(res => setFacilities(res.data)).catch(console.error);
+    api.get('/patients/search?q=').then(r => setPatients(r.data)).catch(() => {});
+    api.get('/auth/doctors').then(r => setDoctors(r.data)).catch(() => {});
+    api.get('/facilities').then(r => setFacilities(r.data.data || r.data || [])).catch(() => {});
   }, []);
 
-  const handleAddPatient = async () => {
-    if (!selectedPatient || !selectedFacility) {
-      alert('Patient and Facility are required');
-      return;
-    }
-
-    setSubmitLoading(true);
+  const addToQueue = async () => {
+    if (!selPatient || !selFacility) { setError('Please select a patient and clinic.'); return; }
+    setSubmitting(true);
     try {
-      await api.post('/queue', {
-        patientId: selectedPatient,
-        doctorId: selectedDoctor || undefined,
-        facilityId: selectedFacility,
-        priority: parseInt(priority)
-      });
-      setShowForm(false);
-      setSelectedPatient('');
-      setSelectedDoctor('');
-      setSelectedFacility('');
-      setPriority('0');
+      await api.post('/queue', { patientId: selPatient, doctorId: selDoctor || undefined, facilityId: selFacility, priority: parseInt(priority) });
+      setShowForm(false); setSelPatient(''); setSelDoctor(''); setPriority('0');
       await fetchQueue();
-    } catch (err: any) {
-      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to add to queue');
-    } finally {
-      setSubmitLoading(false);
-    }
+    } catch (e: any) {
+      setError(e.response?.data?.error || e.response?.data?.message || 'Could not add patient to queue.');
+    } finally { setSubmitting(false); }
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
       await api.put(`/queue/${id}/status`, { status: newStatus });
       fetchQueue();
-    } catch {
-      alert('Failed to update queue status');
-    }
+    } catch { setError('Could not update this patient. Please try again.'); }
   };
 
+  const waiting       = queue.filter(e => e.status === 'WAITING').length;
+  const inConsult     = queue.filter(e => e.status === 'IN_CONSULTATION').length;
+
   return (
-    <div className="container mx-auto p-4 md:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Active Queue</h2>
-        <div className="flex gap-4">
-          <Button variant="outline" onClick={fetchQueue}>Refresh</Button>
-          <Button onClick={() => setShowForm(true)}>Add Patient</Button>
+    <PageShell
+      title="Patients Waiting"
+      subtitle={queue.length > 0 ? `${waiting} waiting · ${inConsult} in consultation` : 'No patients in queue right now'}
+      action={
+        <div className="flex gap-2">
+          <button onClick={fetchQueue} className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-gray-600">
+            <RefreshCw size={14} /> Refresh
+          </button>
+          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl bg-[#1e6641] hover:bg-[#165032] text-white transition-colors">
+            <Plus size={14} /> Add patient
+          </button>
         </div>
-      </div>
+      }
+    >
+      <div className="space-y-4">
+        <InlineError message={error} onDismiss={() => setError('')} />
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">Add Patient to Queue</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Patient *</label>
-                <select className="w-full border p-2 rounded-md" value={selectedPatient} onChange={e => setSelectedPatient(e.target.value)}>
-                  <option value="">Select Patient</option>
-                  {patients.map(p => <option key={p.id} value={p.id}>{p.name} (ID: {p.id.slice(0,6)})</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Facility *</label>
-                <select className="w-full border p-2 rounded-md" value={selectedFacility} onChange={e => setSelectedFacility(e.target.value)}>
-                  <option value="">Select Facility</option>
-                  {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Doctor (Optional)</label>
-                <select className="w-full border p-2 rounded-md" value={selectedDoctor} onChange={e => setSelectedDoctor(e.target.value)}>
-                  <option value="">Any Available</option>
-                  {doctors.map(d => <option key={d.id} value={d.id}>{d.user?.phone || 'Doctor'} (ID: {d.id.slice(0,6)})</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                <select className="w-full border p-2 rounded-md" value={priority} onChange={e => setPriority(e.target.value)}>
-                  <option value="0">Normal</option>
-                  <option value="1">High Priority</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button onClick={handleAddPatient} disabled={submitLoading}>{submitLoading ? 'Adding...' : 'Add to Queue'}</Button>
-            </div>
+        {loading ? (
+          <SkeletonList rows={5} />
+        ) : queue.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100">
+            <EmptyState
+              icon={Clock}
+              title="No patients waiting"
+              description="Referrals from health workers will appear here in real time."
+            />
           </div>
-        </div>
-      )}
-
-      {error && <div className="bg-red-50 text-red-600 p-4 rounded-md mb-6">{error}</div>}
-
-      {loading ? (
-        <div className="text-gray-500 animate-pulse">Loading queue...</div>
-      ) : queue.length === 0 ? (
-        <div className="text-gray-500 bg-gray-50 p-8 rounded-xl text-center border">
-          No patients currently in the queue.
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <table className="w-full text-sm text-left text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-4">Patient</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Priority</th>
-                <th className="px-6 py-4">Arrival Time</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map((entry) => (
-                <tr key={entry.id} className="border-b hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">
-                      {entry.appointment?.patient?.name || 'Unknown Patient'}
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <span className="hidden sm:block">#</span>
+              <span>Patient</span>
+              <span className="hidden sm:block">Priority</span>
+              <span>Status</span>
+              <span />
+            </div>
+            <ul className="divide-y divide-gray-50">
+              {queue.map((entry, idx) => (
+                <li key={entry.id} className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                  <span className="hidden sm:block text-sm font-semibold text-gray-400">{idx + 1}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#e4efe7] text-[#1e6641] flex items-center justify-center font-semibold text-sm shrink-0">
+                      {(entry.appointment?.patient?.name || 'P').charAt(0)}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      entry.status === 'WAITING' ? 'bg-yellow-100 text-yellow-800' :
-                      entry.status === 'IN_CONSULTATION' ? 'bg-blue-100 text-blue-800' :
-                      entry.status === 'PRIORITY' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {entry.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {entry.priority > 0 ? (
-                      <span className="text-red-600 font-semibold">High ({entry.priority})</span>
-                    ) : (
-                      'Normal'
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    {new Date(entry.arrivalTime).toLocaleTimeString()}
-                  </td>
-                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">{entry.appointment?.patient?.name || 'Unknown patient'}</div>
+                      <div className="text-xs text-gray-400">
+                        Arrived {new Date(entry.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block">
+                    {entry.priority > 0
+                      ? <StatusBadge status="URGENT" />
+                      : <span className="text-xs text-gray-400">Routine</span>
+                    }
+                  </div>
+                  <StatusBadge status={entry.status} />
+                  <div className="flex items-center gap-2">
                     {entry.appointment?.patient?.id && (
-                      <Link to={`/patients/${entry.appointment.patient.id}`}>
-                        <Button variant="outline" size="sm">View Profile</Button>
+                      <Link to={`/patients/${entry.appointment.patient.id}`} className="p-1.5 rounded-lg text-gray-400 hover:text-[#1e6641] hover:bg-[#e4efe7] transition-colors">
+                        <ChevronRight size={16} />
                       </Link>
                     )}
                     {entry.status === 'WAITING' && (
-                      <Button size="sm" onClick={() => updateStatus(entry.id, 'IN_CONSULTATION')}>Start</Button>
+                      <button onClick={() => updateStatus(entry.id, 'IN_CONSULTATION')} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1e6641] hover:bg-[#165032] text-white transition-colors whitespace-nowrap">
+                        Start
+                      </button>
                     )}
                     {entry.status === 'IN_CONSULTATION' && (
-                      <Button size="sm" onClick={() => updateStatus(entry.id, 'COMPLETED')}>Complete</Button>
+                      <button onClick={() => updateStatus(entry.id, 'COMPLETED')} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors whitespace-nowrap">
+                        Complete
+                      </button>
                     )}
-                  </td>
-                </tr>
+                  </div>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+            </ul>
+          </div>
+        )}
+
+        {/* Add to queue modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">Add patient to today's queue</h3>
+                <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className={LABEL}>Patient *</label>
+                  <select className={INPUT} value={selPatient} onChange={e => setSelPatient(e.target.value)}>
+                    <option value="">Select patient</option>
+                    {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Clinic *</label>
+                  <select className={INPUT} value={selFacility} onChange={e => setSelFacility(e.target.value)}>
+                    <option value="">Select clinic</option>
+                    {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Doctor <span className="font-normal text-gray-400">(optional)</span></label>
+                  <select className={INPUT} value={selDoctor} onChange={e => setSelDoctor(e.target.value)}>
+                    <option value="">Any available</option>
+                    {doctors.map(d => <option key={d.id} value={d.id}>{d.user?.name || `Doctor ${d.id.slice(0,6)}`}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Urgency</label>
+                  <select className={INPUT} value={priority} onChange={e => setPriority(e.target.value)}>
+                    <option value="0">Routine</option>
+                    <option value="1">Urgent</option>
+                  </select>
+                </div>
+              </div>
+              <div className="px-6 pb-6 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button onClick={addToQueue} disabled={submitting} className="bg-[#1e6641] hover:bg-[#165032] text-white">
+                  {submitting ? 'Adding…' : 'Add to queue'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 }
