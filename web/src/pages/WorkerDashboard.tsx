@@ -20,7 +20,7 @@ export default function WorkerDashboard() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const name = user.name || 'Sunita Devi';
+  const name = user.name || 'Sunita Patil';
 
   useEffect(() => {
     api.get('/patients/search?q=')
@@ -46,7 +46,7 @@ export default function WorkerDashboard() {
   return (
     <PageShell
       title={`${greeting}, ${name.split(' ')[0]}.`}
-      subtitle="Mokama Sub-Center · Here's what needs your attention today."
+      subtitle="Khandala Sub-Center, Pune District · Here's what needs your attention today."
       action={
         <div className="flex items-center gap-2">
           {/* Sync pill */}

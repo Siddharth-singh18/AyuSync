@@ -1,4 +1,4 @@
-﻿import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Share2, Printer, Home, ArrowRight } from 'lucide-react';
 
 export default function ReferralSuccess() {
@@ -8,7 +8,7 @@ export default function ReferralSuccess() {
   const token       = s.token        || `REF-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const patientName = s.patientName  || 'Community Patient';
   const urgency     = s.urgency      || 'ROUTINE';
-  const facility    = s.facilityName || 'Mokama CHC';
+  const facility    = s.facilityName || 'Baramati CHC';
   const ambulance   = s.needsAmbulance || false;
 
   const URGENCY_LABEL: Record<string, string> = {

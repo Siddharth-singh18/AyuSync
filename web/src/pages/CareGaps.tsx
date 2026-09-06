@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import PageShell from '../components/ui/PageShell';
 import EmptyState from '../components/ui/EmptyState';
@@ -21,11 +21,11 @@ const CATEGORY_COLOR: Record<Task['category'], string> = {
 };
 
 const INITIAL_TASKS: Task[] = [
-  { id: '1', patientName: 'Pooja Sharma',     age: 26, taskTitle: 'Check blood pressure at home visit', category: 'MOTHER_BABY', dueDate: 'Today',     isOverdue: false, completed: false, notes: 'History of high BP in pregnancy · Instructions from Dr. Sharma' },
-  { id: '2', patientName: 'Ramesh Kumar',     age: 58, taskTitle: 'Confirm diabetes medicine was taken', category: 'ONGOING',  dueDate: '2 days ago', isOverdue: true,  completed: false, notes: 'Check if Metformin is available at sub-center'              },
-  { id: '3', patientName: 'Sita Devi',        age: 42, taskTitle: 'Blood pressure follow-up',           category: 'ONGOING',  dueDate: 'Today',     isOverdue: false, completed: true,  notes: 'BP: 128/84 · Medicine confirmed'                          },
-  { id: '4', patientName: 'Aarav Patel',      age: 1,  taskTitle: 'Vaccination check — Pentavalent 3', category: 'INFECTION', dueDate: 'Tomorrow',  isOverdue: false, completed: false, notes: 'Immunization drive at Mokama HWC'                          },
-  { id: '5', patientName: 'Meena Kumari',     age: 34, taskTitle: 'Post-discharge check-in',           category: 'GENERAL',  dueDate: 'Today',     isOverdue: false, completed: true,  notes: 'Returned from Mokama CHC after treatment'                  },
+  { id: '1', patientName: 'Pooja Sharma',     age: 26, taskTitle: 'Check blood pressure at home visit', category: 'MOTHER_BABY', dueDate: 'Today',     isOverdue: false, completed: false, notes: 'History of high BP in pregnancy · Instructions from Dr. Priya Kulkarni' },
+  { id: '2', patientName: 'Ramesh Kulkarni',  age: 58, taskTitle: 'Confirm diabetes medicine was taken', category: 'ONGOING',  dueDate: '2 days ago', isOverdue: true,  completed: false, notes: 'Check if Metformin is available at Khandala sub-center'     },
+  { id: '3', patientName: 'Savita Jadhav',    age: 48, taskTitle: 'Asthma inhaler technique follow-up', category: 'ONGOING',  dueDate: 'Today',     isOverdue: false, completed: true,  notes: 'BP: 122/80 · Inhaler technique verified'                  },
+  { id: '4', patientName: 'Aarav Patel',      age: 2,  taskTitle: 'Vaccination check — Pentavalent 3', category: 'INFECTION', dueDate: 'Tomorrow',  isOverdue: false, completed: false, notes: 'Immunization drive at Khandala Sub-center'                 },
+  { id: '5', patientName: 'Meena Kumari',     age: 34, taskTitle: 'Post-discharge check-in',           category: 'GENERAL',  dueDate: 'Today',     isOverdue: false, completed: true,  notes: 'Returned from Baramati CHC after recovery'                 },
 ];
 
 type Filter = 'ALL' | 'PENDING' | 'OVERDUE' | 'DONE';

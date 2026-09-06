@@ -143,9 +143,9 @@ export default function PatientProfile() {
           <dl className="space-y-3 text-xs">
             {[
               { icon: Phone,    label: 'Phone',       value: patient.phone || 'Not recorded' },
-              { icon: MapPin,   label: 'Village',     value: patient.village || patient.address || 'Mokama Ward 4' },
-              { icon: User,     label: 'ABHA / ID',   value: patient.abhaId || 'Not assigned' },
-              { icon: User,     label: 'Assigned to', value: 'Sunita Devi (ASHA)' },
+              { icon: MapPin,   label: 'Village',     value: patient.village || patient.address || 'Baramati Rural' },
+              { icon: User,     label: 'ABHA / ID',   value: patient.identifiers?.[0]?.value || patient.abhaId || 'Not assigned' },
+              { icon: User,     label: 'Assigned to', value: 'Sunita Patil (ASHA)' },
               { icon: Calendar, label: 'Enrolled',    value: new Date(patient.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
             ].map(row => (
               <div key={row.label} className="flex items-start gap-2.5">

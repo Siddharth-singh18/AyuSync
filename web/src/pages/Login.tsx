@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { HeartPulse, Stethoscope, UserCheck, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { HeartPulse, Stethoscope, UserCheck, ArrowRight, Eye, EyeOff, User, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [showAllDemo, setShowAllDemo] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -45,7 +46,13 @@ export default function Login() {
       const { data } = await api.post('/auth/login', { phone: loginPhone, password: loginPass });
       localStorage.setItem('ayusync_token', data.token);
       localStorage.setItem('ayusync_user', JSON.stringify(data.user));
-      navigate(data.user.role === 'WORKER' ? '/worker' : '/dashboard');
+      if (data.user.role === 'WORKER') {
+        navigate('/worker');
+      } else if (data.user.role === 'PATIENT') {
+        navigate(data.user.patientId ? `/patients/${data.user.patientId}` : '/patients');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (e: any) {
       const serverMsg = e.response?.data?.message || e.response?.data?.error;
       setError(serverMsg || (e.message ? `${e.message} - please check backend connection` : 'Could not sign in. Please check your credentials.'));
@@ -133,8 +140,19 @@ export default function Login() {
 
           {/* Quick demo access */}
           <div className="mt-7 pt-6 border-t border-gray-200">
-            <p className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide ">Demo Access</p>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quick Demo Access</p>
+              <button
+                type="button"
+                onClick={() => setShowAllDemo(!showAllDemo)}
+                className="text-xs text-[#1e6641] hover:underline font-medium flex items-center gap-1"
+              >
+                <span>{showAllDemo ? 'Hide all accounts' : 'View all 8 accounts'}</span>
+                {showAllDemo ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -142,16 +160,17 @@ export default function Login() {
                   setPassword('password123');
                   doLogin('+919876543210', 'password123');
                 }}
-                className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/50 transition-all text-left group"
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/40 transition-all text-left group"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#1e6641] text-white flex items-center justify-center shrink-0">
-                  <Stethoscope size={15} />
+                <div className="w-7 h-7 rounded-lg bg-[#1e6641] text-white flex items-center justify-center shrink-0">
+                  <Stethoscope size={14} />
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641]">Doctor login</div>
-                  <div className="text-[11px] text-gray-400">Dr. Sharma</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641] truncate">Doctor (CMO)</div>
+                  <div className="text-[10px] text-gray-400 truncate">Dr. Deshmukh</div>
                 </div>
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -159,17 +178,96 @@ export default function Login() {
                   setPassword('password123');
                   doLogin('+919998887776', 'password123');
                 }}
-                className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/50 transition-all text-left group"
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/40 transition-all text-left group"
               >
-                <div className="w-8 h-8 rounded-lg bg-[#5e7a3e] text-white flex items-center justify-center shrink-0">
-                  <UserCheck size={15} />
+                <div className="w-7 h-7 rounded-lg bg-[#5e7a3e] text-white flex items-center justify-center shrink-0">
+                  <UserCheck size={14} />
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641]">Health worker login</div>
-                  <div className="text-[11px] text-gray-400">Sunita Devi</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641] truncate">ASHA Worker</div>
+                  <div className="text-[10px] text-gray-400 truncate">Sunita Patil</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPhone('+919876543211');
+                  setPassword('password123');
+                  doLogin('+919876543211', 'password123');
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/40 transition-all text-left group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-[#165032] text-white flex items-center justify-center shrink-0">
+                  <Sparkles size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641] truncate">Specialist</div>
+                  <div className="text-[10px] text-gray-400 truncate">Dr. Priya (OBGYN)</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPhone('+919111222333');
+                  setPassword('password123');
+                  doLogin('+919111222333', 'password123');
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 hover:border-[#1e6641]/40 hover:bg-[#e4efe7]/40 transition-all text-left group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-teal-700 text-white flex items-center justify-center shrink-0">
+                  <User size={14} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-gray-900 group-hover:text-[#1e6641] truncate">Patient Portal</div>
+                  <div className="text-[10px] text-gray-400 truncate">Ramesh Kulkarni</div>
                 </div>
               </button>
             </div>
+
+            {/* Expandable full list */}
+            {showAllDemo && (
+              <div className="mt-3 p-3 bg-white rounded-xl border border-gray-200 shadow-sm space-y-2 text-xs">
+                <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wide border-b border-gray-100 pb-1.5 flex justify-between">
+                  <span>Role & Name</span>
+                  <span>Mobile & Password</span>
+                </div>
+                <ul className="space-y-1.5 divide-y divide-gray-50">
+                  {[
+                    { role: 'Doctor (CMO)', name: 'Dr. Rajesh Deshmukh', phone: '+919876543210' },
+                    { role: 'Doctor (OBGYN)', name: 'Dr. Priya Kulkarni', phone: '+919876543211' },
+                    { role: 'Doctor (Pediatrics)', name: 'Dr. Anand Joshi', phone: '+919876543212' },
+                    { role: 'ASHA Worker', name: 'Sunita Patil (Khandala)', phone: '+919998887776' },
+                    { role: 'ASHA Worker', name: 'Vandana Shinde (Saswad)', phone: '+919998887777' },
+                    { role: 'ANM Nurse', name: 'Kavita More (Baramati)', phone: '+919998887778' },
+                    { role: 'Patient', name: 'Ramesh Kulkarni (Hypertension)', phone: '+919111222333' },
+                    { role: 'Patient', name: 'Pooja Sharma (Maternal Care)', phone: '+919111222334' },
+                  ].map(acc => (
+                    <li key={acc.phone} className="pt-1.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">{acc.name}</div>
+                        <div className="text-[10px] text-gray-500">{acc.role}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhone(acc.phone);
+                          setPassword('password123');
+                          doLogin(acc.phone, 'password123');
+                        }}
+                        className="text-[11px] px-2 py-1 bg-gray-100 hover:bg-[#e4efe7] hover:text-[#1e6641] rounded-lg transition-colors font-mono shrink-0 font-medium"
+                      >
+                        {acc.phone.slice(3)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-2 text-[10px] text-gray-400 border-t border-gray-100 text-center">
+                  Universal demo password: <span className="font-mono font-semibold text-gray-600">password123</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

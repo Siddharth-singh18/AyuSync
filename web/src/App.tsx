@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import SplashScreen from './components/ui/SplashScreen';
 import Login from './pages/Login';
@@ -52,16 +52,31 @@ const ProtectedRoute = () => {
   if (!token) return <Navigate to="/login" replace />;
 
   const isWorker = currentRole === 'WORKER';
+  const isPatient = currentRole === 'PATIENT';
 
   const switchRole = () => {
-    const newRole = isWorker ? 'DOCTOR' : 'WORKER';
-    const updated = { ...user, role: newRole, name: newRole === 'DOCTOR' ? 'Dr. Sharma' : 'Sunita Devi' };
+    let newRole = 'DOCTOR';
+    let newName = 'Dr. Rajesh Deshmukh';
+    if (currentRole === 'DOCTOR') {
+      newRole = 'WORKER';
+      newName = 'Sunita Patil';
+    } else if (currentRole === 'WORKER') {
+      newRole = 'PATIENT';
+      newName = 'Ramesh Kulkarni';
+    } else {
+      newRole = 'DOCTOR';
+      newName = 'Dr. Rajesh Deshmukh';
+    }
+
+    const updated = { ...user, role: newRole, name: newName };
     localStorage.setItem('ayusync_user', JSON.stringify(updated));
     setCurrentRole(newRole);
-    window.location.href = newRole === 'WORKER' ? '/worker' : '/dashboard';
+    if (newRole === 'WORKER') window.location.href = '/worker';
+    else if (newRole === 'PATIENT') window.location.href = user.patientId ? `/patients/${user.patientId}` : '/patients';
+    else window.location.href = '/dashboard';
   };
 
-  const displayName = user.name || (isWorker ? 'Sunita Devi' : 'Dr. Sharma');
+  const displayName = user.name || (isWorker ? 'Sunita Patil' : isPatient ? 'Ramesh Kulkarni' : 'Dr. Rajesh Deshmukh');
 
   return (
     <div className="min-h-screen bg-[#f8f7f3] font-sans text-gray-900">
@@ -70,13 +85,13 @@ const ProtectedRoute = () => {
         <div className="max-w-7xl mx-auto flex h-14 items-center justify-between px-4 sm:px-6 gap-4">
 
           {/* Brand */}
-          <Link to={isWorker ? '/worker' : '/dashboard'} className="flex items-center gap-2 shrink-0 group">
+          <Link to={isWorker ? '/worker' : isPatient ? (user.patientId ? `/patients/${user.patientId}` : '/patients') : '/dashboard'} className="flex items-center gap-2 shrink-0 group">
             <div className="w-8 h-8 rounded-lg bg-[#1e6641] text-white flex items-center justify-center group-hover:opacity-90 transition-opacity">
               <HeartPulse size={18} strokeWidth={2} />
             </div>
             <div className="hidden sm:block">
               <div className="text-sm font-bold text-gray-900 leading-tight">SwasthyaSetu</div>
-              <div className="text-[10px] text-gray-400 leading-tight">AyuSync · Mokama CHC</div>
+              <div className="text-[10px] text-gray-400 leading-tight">AyuSync · Baramati CHC</div>
             </div>
           </Link>
 
@@ -87,6 +102,11 @@ const ProtectedRoute = () => {
                 <NavLink to="/worker" exact><LayoutDashboard size={15} />Home</NavLink>
                 <NavLink to="/patients"><Users size={15} />My Patients</NavLink>
                 <NavLink to="/followups"><CheckSquare size={15} />Today's Tasks</NavLink>
+              </>
+            ) : isPatient ? (
+              <>
+                <NavLink to={user.patientId ? `/patients/${user.patientId}` : '/patients'} exact><Users size={15} />My Health Record</NavLink>
+                <NavLink to="/patients"><Users size={15} />All Patient Records</NavLink>
               </>
             ) : (
               <>

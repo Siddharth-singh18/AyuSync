@@ -44,13 +44,47 @@ export const login = async (req: Request, res: Response) => {
 
     const primaryRole = user.roles.length > 0 ? user.roles[0].name : 'USER';
 
+    let displayName: string | undefined = undefined;
+    let patientId: string | undefined = undefined;
+
+    if (primaryRole === 'DOCTOR') {
+      if (user.phone?.includes('9876543210')) displayName = 'Dr. Rajesh Deshmukh';
+      else if (user.phone?.includes('9876543211')) displayName = 'Dr. Priya Kulkarni';
+      else if (user.phone?.includes('9876543212')) displayName = 'Dr. Anand Joshi';
+      else displayName = 'Dr. Deshmukh';
+    } else if (primaryRole === 'WORKER') {
+      if (user.phone?.includes('9998887776')) displayName = 'Sunita Patil';
+      else if (user.phone?.includes('9998887777')) displayName = 'Vandana Shinde';
+      else if (user.phone?.includes('9998887778')) displayName = 'Kavita More';
+      else displayName = 'Sunita Patil';
+    } else if (primaryRole === 'PATIENT') {
+      const patient = await prisma.patient.findFirst({
+        where: { phone: { in: phoneVariants } }
+      });
+      if (patient) {
+        patientId = patient.id;
+        displayName = patient.name;
+      } else {
+        displayName = 'Patient';
+      }
+    }
+
     const token = jwt.sign(
       { id: user.id, role: primaryRole, phone: user.phone },
       process.env.JWT_SECRET || 'ayusync_super_secret',
       { expiresIn: '24h' }
     );
 
-    res.json({ token, user: { id: user.id, phone: user.phone, role: primaryRole } });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        role: primaryRole,
+        name: displayName,
+        patientId
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: 'Internal Server Error' });
   }
