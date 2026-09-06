@@ -1,14 +1,28 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../index';
 
+/**
+ * OFFLINE SYNC MUTATION BATCH (PUSH)
+ * Processes offline mutations queued by frontline mobile/web workers.
+ * Enforces operationId idempotency to prevent duplicate mutations.
+ */
 export const processSyncBatch = async (req: Request, res: Response) => {
   try {
     const { workerId, mutations } = req.body;
+
+    if (!Array.isArray(mutations)) {
+      return res.status(400).json({ error: 'Mutations array is required' });
+    }
+
     const results = [];
 
-    // 34. OFFLINE SYNC IDEMPOTENCY: Ensure operationIds are not processed twice
     for (const mutation of mutations) {
       const { operationId, entity, action, payload } = mutation;
+
+      if (!operationId) {
+        results.push({ operationId: 'UNKNOWN', status: 'ERROR', error: 'Missing operationId' });
+        continue;
+      }
 
       const existingOp = await prisma.syncOperation.findUnique({
         where: { id: operationId }
@@ -22,22 +36,48 @@ export const processSyncBatch = async (req: Request, res: Response) => {
 
       try {
         await prisma.$transaction(async (tx) => {
-          // Dynamic handling based on entity (Assessment, Patient, etc)
-          if (entity === 'ASSESSMENT' && action === 'CREATE') {
-            await tx.assessment.create({ data: payload });
-          } else if (entity === 'PATIENT' && action === 'CREATE') {
-            await tx.patient.upsert({
-              where: { id: payload.id },
-              update: payload,
-              create: payload
-            });
+          if (entity === 'PATIENT') {
+            if (action === 'CREATE' || action === 'UPDATE') {
+              await tx.patient.upsert({
+                where: { id: payload.id },
+                update: payload,
+                create: payload
+              });
+            }
+          } else if (entity === 'ASSESSMENT') {
+            if (action === 'CREATE') {
+              await tx.assessment.create({ data: payload });
+            }
+          } else if (entity === 'REFERRAL') {
+            if (action === 'CREATE') {
+              await tx.referral.create({ data: payload });
+            } else if (action === 'UPDATE') {
+              await tx.referral.update({
+                where: { id: payload.id },
+                data: payload
+              });
+            }
+          } else if (entity === 'FOLLOWUP') {
+            if (action === 'UPDATE') {
+              await tx.followUp.update({
+                where: { id: payload.id },
+                data: payload
+              });
+            }
+          } else if (entity === 'TASK') {
+            if (action === 'UPDATE') {
+              await tx.task.update({
+                where: { id: payload.id },
+                data: payload
+              });
+            }
           }
-          // ... handle other entity actions
 
+          // Record sync audit record
           await tx.syncOperation.create({
             data: {
               id: operationId,
-              userId: workerId,
+              userId: workerId || 'unknown-worker',
               deviceId: mutation.deviceId || 'unknown',
               entity,
               entityId: payload.id || 'unknown',
@@ -48,15 +88,91 @@ export const processSyncBatch = async (req: Request, res: Response) => {
             }
           });
         });
+
         results.push({ operationId, status: 'SUCCESS' });
       } catch (err: any) {
-        // Handle conflicts or invalid data (e.g., patient doesn't exist)
         results.push({ operationId, status: 'CONFLICT', error: err.message });
       }
     }
 
     res.json({ results });
   } catch (error) {
+    console.error('Error processing sync batch:', error);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+/**
+ * OFFLINE SYNC DELTA PULL
+ * Returns records created or updated since the client's lastSyncTimestamp.
+ * Optimized for low-bandwidth 2G/3G connections.
+ */
+export const pullSyncChanges = async (req: Request, res: Response) => {
+  try {
+    const sinceParam = req.query.since as string;
+    const since = sinceParam ? new Date(sinceParam) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const facilityId = req.query.facilityId as string | undefined;
+    const workerId = (req as any).user?.id || (req.query.workerId as string | undefined);
+
+    const [patients, referrals, followups, tasks, notifications] = await Promise.all([
+      prisma.patient.findMany({
+        where: { updatedAt: { gte: since } },
+        take: 100,
+        orderBy: { updatedAt: 'asc' }
+      }),
+      prisma.referral.findMany({
+        where: {
+          updatedAt: { gte: since },
+          ...(facilityId ? {
+            OR: [
+              { fromFacilityId: facilityId },
+              { toFacilityId: facilityId }
+            ]
+          } : {})
+        },
+        include: { events: true },
+        take: 100,
+        orderBy: { updatedAt: 'asc' }
+      }),
+      prisma.followUp.findMany({
+        where: {
+          updatedAt: { gte: since },
+          ...(workerId ? { workerId } : {})
+        },
+        take: 100,
+        orderBy: { updatedAt: 'asc' }
+      }),
+      prisma.task.findMany({
+        where: {
+          updatedAt: { gte: since },
+          ...(workerId ? { workerId } : {})
+        },
+        take: 100,
+        orderBy: { updatedAt: 'asc' }
+      }),
+      prisma.notification.findMany({
+        where: {
+          createdAt: { gte: since },
+          ...(workerId ? { userId: workerId } : {})
+        },
+        take: 50,
+        orderBy: { createdAt: 'asc' }
+      })
+    ]);
+
+    res.json({
+      syncTimestamp: new Date().toISOString(),
+      since: since.toISOString(),
+      delta: {
+        patients,
+        referrals,
+        followups,
+        tasks,
+        notifications
+      }
+    });
+  } catch (error: any) {
+    console.error('Error pulling sync changes:', error);
+    res.status(500).json({ error: 'Failed to pull sync updates' });
   }
 };

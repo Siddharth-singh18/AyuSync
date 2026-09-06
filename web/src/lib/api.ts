@@ -1,8 +1,24 @@
 import axios from 'axios';
 
+/**
+ * Normalizes the backend base URL so that both REST and WebSockets
+ * can share VITE_API_URL regardless of whether /api or trailing slashes are present.
+ */
+const rawUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').trim();
+
+// Root server host (e.g., https://ayusync-backend.onrender.com)
+export const getBaseServerUrl = (): string => {
+  return rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+};
+
+// REST API base URL (e.g., https://ayusync-backend.onrender.com/api)
+export const getApiBaseUrl = (): string => {
+  return `${getBaseServerUrl()}/api`;
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  timeout: 10000,
+  baseURL: getApiBaseUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,3 +49,4 @@ api.interceptors.response.use(
 );
 
 export default api;
+export { api };

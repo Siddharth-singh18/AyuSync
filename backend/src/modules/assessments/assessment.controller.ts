@@ -39,8 +39,7 @@ export const createAssessment = async (req: Request, res: Response) => {
 
     // Trigger Triage Fallback/AI Generation asynchronously (or await it)
     if (assessment.id) {
-      // In a real production system, this could be sent to a queue
-      await analyzeAssessment(assessment.id, 'doc-1'); // Currently hardcoding doctorId to ensure broadcast runs if needed, or pass from req
+      await analyzeAssessment(assessment.id, 'doc-1', req.correlationId);
     }
 
     // Refetch the assessment to include the AI Recommendations before returning
