@@ -28,7 +28,7 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('✅ 11 Sync / Upload Completed. Local mutations synchronized to server.'),
+        content: Text('✅ Upload Complete! All offline records are now synchronized.'),
         backgroundColor: Colors.green,
       ),
     );
@@ -49,7 +49,7 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('11 Sync Queue & Upload'),
+        title: const Text('Offline Upload Queue'),
         backgroundColor: const Color(0xFF2563EB),
         foregroundColor: Colors.white,
       ),
@@ -75,11 +75,11 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        appState.isOnline ? 'Network Connected (Ready to Sync)' : 'Offline (Local Cache Active)',
+                        appState.isOnline ? 'Network Connected (Ready to Sync)' : 'Offline (Saved on device)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '${items.length} Pending Mutations in SQLite Queue',
+                        '${items.length} records waiting to upload',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                       ),
                     ],
@@ -119,7 +119,10 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                               Navigator.pushReplacementNamed(context, '/triage/ai_result');
                             },
                             icon: const Icon(Icons.auto_awesome),
-                            label: const Text('Proceed to 12 AI Triage + Reasoning'),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('View Health Urgency & Guidance', maxLines: 1),
+                            ),
                           ),
                       ],
                     ),
@@ -214,8 +217,18 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                     onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
-                    child: const Text('Dashboard'),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Dashboard',
+                        maxLines: 1,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -225,7 +238,7 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: (items.isEmpty || _isSyncing) ? null : _triggerSync,
@@ -236,9 +249,13 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                           )
                         : const Icon(Icons.cloud_upload),
-                    label: Text(
-                      _isSyncing ? 'Syncing...' : '11 Sync / Upload Now',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _isSyncing ? 'Syncing...' : 'Upload All Now',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                      ),
                     ),
                   ),
                 ),

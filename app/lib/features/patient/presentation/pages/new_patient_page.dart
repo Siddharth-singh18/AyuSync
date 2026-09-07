@@ -238,15 +238,19 @@ class _NewPatientPageState extends State<NewPatientPage> {
             onPressed: _onPreviousStep,
           ),
           const SizedBox(width: 4),
-          const Text(
-            'Register New Patient',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.forest,
+          const Expanded(
+            child: Text(
+              'Register New Patient',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.forest,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -274,8 +278,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section 1: Patient Identification
-        _buildSectionHeader('Patient Identification'),
+        // Section 1: Basic Details
+        _buildSectionHeader('Basic Details'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -328,8 +332,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
         const SizedBox(height: 18),
 
-        // Section 2: Contact Information
-        _buildSectionHeader('Contact Information'),
+        // Section 2: Phone & Contact
+        _buildSectionHeader('Phone & Contact'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -366,8 +370,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
         const SizedBox(height: 18),
 
-        // Section 3: Residential Information
-        _buildSectionHeader('Residential Information'),
+        // Section 3: Address & Location
+        _buildSectionHeader('Address & Location'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -394,7 +398,40 @@ class _NewPatientPageState extends State<NewPatientPage> {
                   child: _buildDropdownField(
                     label: 'State:',
                     value: _selectedState,
-                    items: const ['Chhattisgarh', 'Madhya Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Odisha', 'Other'],
+                    items: const [
+                      'Chhattisgarh',
+                      'Andhra Pradesh',
+                      'Arunachal Pradesh',
+                      'Assam',
+                      'Bihar',
+                      'Goa',
+                      'Gujarat',
+                      'Haryana',
+                      'Himachal Pradesh',
+                      'Jharkhand',
+                      'Karnataka',
+                      'Kerala',
+                      'Madhya Pradesh',
+                      'Maharashtra',
+                      'Manipur',
+                      'Meghalaya',
+                      'Mizoram',
+                      'Nagaland',
+                      'Odisha',
+                      'Punjab',
+                      'Rajasthan',
+                      'Sikkim',
+                      'Tamil Nadu',
+                      'Telangana',
+                      'Tripura',
+                      'Uttar Pradesh',
+                      'Uttarakhand',
+                      'West Bengal',
+                      'Delhi',
+                      'Jammu & Kashmir',
+                      'Ladakh',
+                      'Other',
+                    ],
                     placeholder: 'Choose',
                     onChanged: (val) => setState(() => _selectedState = val),
                   ),
@@ -427,7 +464,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Basic Health Information'),
+        _buildSectionHeader('Medical History & Health Details'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -457,7 +494,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
             ),
             const SizedBox(height: 16),
             _buildTextAreaField(
-              label: 'Existing Medical Conditions:',
+              label: 'Known Illnesses / Long-term Conditions:',
               controller: _existingConditionsController,
               placeholder: 'e.g. Hypertension, Type-2 Diabetes, Asthma...',
               rows: 3,
@@ -471,7 +508,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
             ),
             const SizedBox(height: 16),
             _buildTextAreaField(
-              label: 'Past Medical History:',
+              label: 'Past Surgeries / Major Illnesses:',
               controller: _pastHistoryController,
               placeholder: 'e.g. Prior surgeries, hospitalizations, chronic ailments...',
               rows: 3,
@@ -489,8 +526,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section 1: Presenting Complaint
-        _buildSectionHeader('Presenting Complaint'),
+        // Section 1: Current Health Problem & Symptoms
+        _buildSectionHeader('Current Health Problem & Symptoms'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -527,7 +564,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
             // Primary Health Concern
             _buildTextAreaField(
-              label: 'Primary Health Concern:',
+              label: 'Main Problem (in patient\'s words):',
               controller: _healthConcernController,
               placeholder: 'Chief complaint in patient words...',
               rows: 2,
@@ -579,7 +616,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
             // Relevant Observations
             _buildTextAreaField(
-              label: 'Relevant Observations:',
+              label: 'Physical Observations / Notes:',
               controller: _observationsController,
               placeholder: 'Physical appearance, pallor, edema, mobility...',
               rows: 2,
@@ -589,8 +626,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
         const SizedBox(height: 18),
 
-        // Section 2: Vitals
-        _buildSectionHeader('Vitals'),
+        // Section 2: Vital Signs
+        _buildSectionHeader('Vital Signs (Health Readings)'),
         const SizedBox(height: 6),
         _buildCardContainer(
           children: [
@@ -634,7 +671,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
               children: [
                 Expanded(
                   child: _buildStepperField(
-                    label: 'Resp. Rate (/min):',
+                    label: 'Breathing Rate (breaths/min):',
                     controller: _respRateController,
                     placeholder: '18',
                     onIncrement: () {
@@ -674,7 +711,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'BP (Systolic / Diastolic):',
+                        'Blood Pressure (High / Low):',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -728,7 +765,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildFormField(
-                    label: 'SpO₂ (%):',
+                    label: 'Oxygen Level - SpO₂ (%):',
                     controller: _spo2Controller,
                     placeholder: '98%',
                     keyboardType: TextInputType.number,

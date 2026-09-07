@@ -52,7 +52,7 @@ class _FacilityRoutingPageState extends State<FacilityRoutingPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('14 Smart Facility Routing'),
+        title: const Text('Choose Health Facility'),
         backgroundColor: const Color(0xFF2563EB),
         foregroundColor: Colors.white,
       ),
@@ -69,15 +69,19 @@ class _FacilityRoutingPageState extends State<FacilityRoutingPage> {
                   children: [
                     const Icon(Icons.alt_route, color: Color(0xFF2563EB)),
                     const SizedBox(width: 8),
-                    Text(
-                      'Routing Algorithm: $urgency Level Match',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    Expanded(
+                      child: Text(
+                        'Recommended Centers for $urgency Urgency',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Facilities ranked by live readiness, distance, and specialist availability.',
+                  'Centers sorted by distance, available doctors, and current waiting time.',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                 ),
               ],
@@ -192,7 +196,7 @@ class _FacilityRoutingPageState extends State<FacilityRoutingPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Freshness: ${fac.freshness}',
+                            'Status: ${fac.freshness}',
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
                           ),
                         ],
@@ -232,11 +236,15 @@ class _FacilityRoutingPageState extends State<FacilityRoutingPage> {
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                     )
                   : const Icon(Icons.send_rounded),
-              label: Text(
-                _isSubmitting
-                    ? 'Submitting Referral...'
-                    : 'Submit Referral Case to ${_selectedFacility?.type ?? "Facility"}',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              label: Flexible(
+                child: Text(
+                  _isSubmitting
+                      ? 'Submitting Referral...'
+                      : 'Send Patient Referral to ${_selectedFacility?.type ?? "Facility"}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ),

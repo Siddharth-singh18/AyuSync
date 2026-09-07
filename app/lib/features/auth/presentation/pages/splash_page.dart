@@ -73,7 +73,7 @@ class _SplashPageState extends State<SplashPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Rural Health Continuum Platform\nASHA & ANM Companion',
+              'Connected Rural Healthcare\nASHA & ANM Companion',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.85),

@@ -28,7 +28,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_idController.text.trim().isEmpty ||
         _passwordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your ASHA ID / Phone and Password')),
+        const SnackBar(content: Text('Please enter your Mobile Number and Password')),
       );
       return;
     }
@@ -60,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Biometric Authentication Successful! Welcome, Sunita.'),
+        content: Text('Fingerprint Login Successful! Welcome, Sunita.'),
         backgroundColor: AppColors.forest,
         duration: Duration(seconds: 1),
       ),
