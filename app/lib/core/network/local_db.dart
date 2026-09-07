@@ -19,55 +19,67 @@ class LocalDatabase {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        await _ensureTables(db);
+      },
       onOpen: (db) async {
-        await _createSessionTable(db);
+        await _ensureTables(db);
       },
     );
   }
 
-  Future _createDB(Database db, int version) async {
-    const idType = 'TEXT PRIMARY KEY';
-    const textType = 'TEXT NOT NULL';
-    const intType = 'INTEGER NOT NULL';
-    const boolType = 'BOOLEAN NOT NULL';
-
-    // 18. OFFLINE-FIRST MOBILE ARCHITECTURE
-    // Store pending mutations locally
+  Future<void> _ensureTables(Database db) async {
     await db.execute('''
-CREATE TABLE sync_queue (
-  operationId $idType,
-  entityId $textType,
-  entity $textType,
-  operation $textType,
-  payload $textType,
-  createdTime $textType,
-  retryCount $intType,
-  syncStatus $textType
+CREATE TABLE IF NOT EXISTS sync_queue (
+  operationId TEXT PRIMARY KEY,
+  entityId TEXT NOT NULL,
+  entity TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  createdTime TEXT NOT NULL,
+  retryCount INTEGER NOT NULL,
+  syncStatus TEXT NOT NULL
 )
 ''');
 
     await db.execute('''
-CREATE TABLE patients (
-  id $idType,
-  name $textType,
-  age $intType,
-  gender $textType,
-  isSynced $boolType
+CREATE TABLE IF NOT EXISTS patients (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  age INTEGER NOT NULL,
+  gender TEXT NOT NULL,
+  phone TEXT,
+  village TEXT,
+  abhaId TEXT,
+  bloodGroup TEXT,
+  dob TEXT,
+  emergencyContact TEXT,
+  preferredLanguage TEXT,
+  district TEXT,
+  state TEXT,
+  pinCode TEXT,
+  address TEXT,
+  allergies TEXT,
+  existingConditions TEXT,
+  currentMedications TEXT,
+  pastHistory TEXT,
+  createdAt TEXT,
+  isSynced INTEGER NOT NULL
 )
 ''');
 
-    await _createSessionTable(db);
-  }
-
-  Future _createSessionTable(Database db) async {
     await db.execute('''
 CREATE TABLE IF NOT EXISTS app_session (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 )
 ''');
+  }
+
+  Future _createDB(Database db, int version) async {
+    await _ensureTables(db);
   }
 
   Future<void> saveSession(Map<String, String> sessionData) async {
@@ -98,9 +110,68 @@ CREATE TABLE IF NOT EXISTS app_session (
     await db.delete('app_session');
   }
 
+  // --- Patient Local Storage ---
+  Future<void> savePatient(Map<String, dynamic> patientMap) async {
+    final db = await instance.database;
+    await db.insert(
+      'patients',
+      patientMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getLocalPatients() async {
+    final db = await instance.database;
+    return await db.query('patients', orderBy: 'createdAt DESC');
+  }
+
+  Future<void> markPatientSynced(String patientId) async {
+    final db = await instance.database;
+    await db.update(
+      'patients',
+      {'isSynced': 1},
+      where: 'id = ?',
+      whereArgs: [patientId],
+    );
+  }
+
+  // --- Sync Queue Storage ---
   Future<void> queueMutation(Map<String, dynamic> mutation) async {
     final db = await instance.database;
-    await db.insert('sync_queue', mutation);
+    await db.insert(
+      'sync_queue',
+      mutation,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingMutations() async {
+    final db = await instance.database;
+    return await db.query(
+      'sync_queue',
+      where: 'syncStatus = ?',
+      whereArgs: ['PENDING'],
+      orderBy: 'createdTime ASC',
+    );
+  }
+
+  Future<void> markMutationSynced(String operationId) async {
+    final db = await instance.database;
+    await db.update(
+      'sync_queue',
+      {'syncStatus': 'SYNCED'},
+      where: 'operationId = ?',
+      whereArgs: [operationId],
+    );
+  }
+
+  Future<void> deleteSyncedMutations() async {
+    final db = await instance.database;
+    await db.delete(
+      'sync_queue',
+      where: 'syncStatus = ?',
+      whereArgs: ['SYNCED'],
+    );
   }
 
   Future<void> close() async {

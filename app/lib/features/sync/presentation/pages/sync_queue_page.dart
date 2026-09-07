@@ -13,31 +13,45 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
   bool _isSyncing = false;
 
   void _triggerSync() async {
-    setState(() => _isSyncing = true);
     final appState = Provider.of<AppState>(context, listen: false);
 
-    // If currently marked offline, auto-switch to online for this sync
     if (!appState.isOnline) {
-      appState.toggleOnlineStatus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('⚠️ Offline: Cannot upload without internet. Please enable Mobile Data or Wi-Fi.'),
+          backgroundColor: Colors.amber.shade900,
+        ),
+      );
+      return;
     }
 
-    await appState.syncAllQueueItems();
+    setState(() => _isSyncing = true);
+    final syncSuccess = await appState.syncAllQueueItems();
 
     if (!mounted) return;
     setState(() => _isSyncing = false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ Upload Complete! All offline records are now synchronized.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    if (syncSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Upload Complete! All offline records are now synchronized.'),
+          backgroundColor: Colors.green,
+        ),
+      );
 
-    // If an assessment was recently created, proceed directly to 12 AI Triage + Reasoning
-    if (appState.currentAssessment != null) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/triage/ai_result');
+      // If an assessment was recently created, proceed to AI Triage + Reasoning
+      if (appState.currentAssessment != null) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/triage/ai_result');
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('❌ Upload Failed: Unable to reach backend server. Records remain safely saved on device.'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     }
   }
 

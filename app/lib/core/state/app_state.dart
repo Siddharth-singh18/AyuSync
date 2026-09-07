@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../models/patient_model.dart';
 import '../models/assessment_model.dart';
@@ -12,10 +15,47 @@ import '../network/local_db.dart';
 class AppState extends ChangeNotifier {
   final _uuid = const Uuid();
   final ApiService _apiService = ApiService();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
-  // Network Connectivity State (Toggleable in UI for testing flows)
+  AppState() {
+    _initConnectivityMonitoring();
+  }
+
+  // Network Connectivity State (Live auto-detected from device network)
   bool _isOnline = true;
   bool get isOnline => _isOnline;
+
+  void _initConnectivityMonitoring() async {
+    try {
+      final initialResults = await Connectivity().checkConnectivity();
+      _handleConnectivityChange(initialResults);
+    } catch (e) {
+      debugPrint('Initial connectivity check error: $e');
+    }
+
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      _handleConnectivityChange(results);
+    });
+  }
+
+  void _handleConnectivityChange(List<ConnectivityResult> results) {
+    final hasNet = results.any((r) => r != ConnectivityResult.none);
+    if (_isOnline != hasNet) {
+      _isOnline = hasNet;
+      notifyListeners();
+      if (_isOnline) {
+        // Automatically sync pending queue items when internet returns
+        syncAllQueueItems();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
 
   // Logged in worker info
   String _workerName = 'Sunita Patil';
@@ -243,7 +283,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Restores persistent session from SQLite local DB on app startup
+  /// Restores persistent session and local offline data from SQLite local DB on app startup
   Future<void> restoreSession() async {
     try {
       final session = await LocalDatabase.instance.getAllSession();
@@ -265,11 +305,50 @@ class AppState extends ChangeNotifier {
         if (token != null && token.isNotEmpty) {
           _apiService.setAuthToken(token);
         }
-        notifyListeners();
+      }
+
+      // Load cached local patients from SQLite
+      final localPatients = await LocalDatabase.instance.getLocalPatients();
+      for (var map in localPatients) {
+        final pat = Patient.fromMap(map);
+        final idx = _patients.indexWhere((p) => p.id == pat.id);
+        if (idx >= 0) {
+          _patients[idx] = pat;
+        } else {
+          _patients.insert(0, pat);
+        }
+      }
+      _totalPatientsCount = _patients.length;
+
+      // Load pending sync mutations into memory queue
+      final pendingOps = await LocalDatabase.instance.getPendingMutations();
+      for (var op in pendingOps) {
+        final opId = op['operationId'] as String;
+        if (!_syncQueue.any((item) => item.id == opId)) {
+          Map<String, dynamic> payload = {};
+          try {
+            payload = jsonDecode(op['payload'] as String);
+          } catch (_) {}
+          _syncQueue.add(SyncItem(
+            id: opId,
+            entityType: op['entity'] as String,
+            action: op['operation'] as String,
+            description: '${op['entity']} sync item',
+            payload: payload,
+            status: op['syncStatus'] as String,
+          ));
+        }
+      }
+
+      notifyListeners();
+
+      if (_isLoggedIn) {
         // Load fresh metrics in background
         loadDashboardData();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error restoring local database session: $e');
+    }
   }
 
   /// Real Backend Login with fallback
@@ -434,7 +513,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Register patient against POST /api/patients with offline fallback
+  /// Register patient with instant local persistence & asynchronous background sync
   Future<Patient> registerPatientAsync({
     required String name,
     required int age,
@@ -455,14 +534,19 @@ class AppState extends ChangeNotifier {
     String? currentMedications,
     String? pastHistory,
   }) async {
-    Patient newPatient = Patient(
-      id: 'P-${100 + _patients.length + 1}',
+    final patientId = 'P-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+    final generatedAbha = (abhaId != null && abhaId.isNotEmpty)
+        ? abhaId
+        : '91-${_uuid.v4().substring(0, 4)}-${_uuid.v4().substring(0, 4)}';
+
+    final newPatient = Patient(
+      id: patientId,
       name: name,
       age: age,
       gender: gender,
       phone: phone,
       village: village,
-      abhaId: (abhaId != null && abhaId.isNotEmpty) ? abhaId : '91-${_uuid.v4().substring(0, 4)}-${_uuid.v4().substring(0, 4)}',
+      abhaId: generatedAbha,
       bloodGroup: bloodGroup,
       dob: dob,
       emergencyContact: emergencyContact,
@@ -475,73 +559,100 @@ class AppState extends ChangeNotifier {
       existingConditions: existingConditions,
       currentMedications: currentMedications,
       pastHistory: pastHistory,
-      isSynced: _isOnline,
+      createdAt: DateTime.now(),
+      isSynced: false,
     );
 
-    if (_isOnline) {
+    // 1. Instant local persistence to SQLite database
+    try {
+      await LocalDatabase.instance.savePatient(newPatient.toMap());
+    } catch (e) {
+      debugPrint('LocalDatabase savePatient error: $e');
+    }
+
+    // 2. Enqueue mutation in SQLite and in-memory queue
+    final syncItem = SyncItem(
+      id: _uuid.v4(),
+      entityType: 'PATIENT',
+      action: 'CREATE',
+      description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+      payload: newPatient.toMap(),
+    );
+
+    try {
+      await LocalDatabase.instance.queueMutation({
+        'operationId': syncItem.id,
+        'entityId': newPatient.id,
+        'entity': 'PATIENT',
+        'operation': 'CREATE',
+        'payload': jsonEncode(newPatient.toMap()),
+        'createdTime': DateTime.now().toIso8601String(),
+        'retryCount': 0,
+        'syncStatus': 'PENDING',
+      });
+    } catch (e) {
+      debugPrint('LocalDatabase queueMutation error: $e');
+    }
+
+    _syncQueue.add(syncItem);
+
+    // 3. Update in-memory patient list and active state
+    _patients.insert(0, newPatient);
+    _currentPatient = newPatient;
+    _totalPatientsCount = _patients.length;
+    notifyListeners();
+
+    // 4. Detached background upload (fire-and-forget, non-blocking)
+    _syncPatientInBackground(newPatient, syncItem);
+
+    // 5. Return immediately so UI displays success with 0ms delay
+    return newPatient;
+  }
+
+  void _syncPatientInBackground(Patient patient, SyncItem syncItem) {
+    if (!_isOnline) return;
+
+    unawaited(() async {
       try {
-        final res = await _apiService.createPatient(
-          name: name,
-          age: age,
-          gender: gender,
-          phone: phone,
-          village: village,
-          dob: dob,
-          abhaId: abhaId,
+        final res = await _apiService.pushSyncBatch(
+          workerId: _workerId,
+          mutations: [
+            {
+              'operationId': syncItem.id,
+              'entity': 'PATIENT',
+              'action': 'CREATE',
+              'payload': patient.toMap(),
+              'deviceId': 'flutter-mobile-client',
+              'timestamp': DateTime.now().toIso8601String(),
+            }
+          ],
         );
 
         if (res.isSuccess && res.data != null) {
-          newPatient = Patient.fromMap(res.data!).copyWith(
-            bloodGroup: bloodGroup,
-            dob: dob,
-            emergencyContact: emergencyContact,
-            preferredLanguage: preferredLanguage,
-            district: district,
-            state: state,
-            pinCode: pinCode,
-            address: address,
-            allergies: allergies,
-            existingConditions: existingConditions,
-            currentMedications: currentMedications,
-            pastHistory: pastHistory,
-            isSynced: true,
-          );
-        } else {
-          // If conflict or validation error, preserve offline sync queue
-          newPatient = newPatient.copyWith(isSynced: false);
-          _syncQueue.add(SyncItem(
-            id: _uuid.v4(),
-            entityType: 'PATIENT',
-            action: 'CREATE',
-            description: 'New Patient: ${newPatient.name} (${newPatient.village})',
-            payload: newPatient.toMap(),
-          ));
+          final results = res.data!['results'] as List?;
+          final isSuccess = results != null && results.any((r) => r is Map && (r['status'] == 'SUCCESS' || r['status'] == 'ALREADY_SYNCED'));
+          if (isSuccess || results == null) {
+            await LocalDatabase.instance.markPatientSynced(patient.id);
+            await LocalDatabase.instance.markMutationSynced(syncItem.id);
+
+            final idx = _patients.indexWhere((p) => p.id == patient.id);
+            if (idx >= 0) {
+              _patients[idx] = _patients[idx].copyWith(isSynced: true);
+            }
+            if (_currentPatient?.id == patient.id) {
+              _currentPatient = _currentPatient!.copyWith(isSynced: true);
+            }
+            final qIdx = _syncQueue.indexWhere((s) => s.id == syncItem.id);
+            if (qIdx >= 0) {
+              _syncQueue[qIdx] = _syncQueue[qIdx].copyWith(status: 'SYNCED');
+            }
+            notifyListeners();
+          }
         }
       } catch (e) {
-        newPatient = newPatient.copyWith(isSynced: false);
-        _syncQueue.add(SyncItem(
-          id: _uuid.v4(),
-          entityType: 'PATIENT',
-          action: 'CREATE',
-          description: 'New Patient: ${newPatient.name} (${newPatient.village})',
-          payload: newPatient.toMap(),
-        ));
+        debugPrint('Background patient upload failed (kept in offline queue): $e');
       }
-    } else {
-      _syncQueue.add(SyncItem(
-        id: _uuid.v4(),
-        entityType: 'PATIENT',
-        action: 'CREATE',
-        description: 'New Patient: ${newPatient.name} (${newPatient.village})',
-        payload: newPatient.toMap(),
-      ));
-    }
-
-    _patients.insert(0, newPatient);
-    _currentPatient = newPatient;
-    _totalPatientsCount += 1;
-    notifyListeners();
-    return newPatient;
+    }());
   }
 
   /// Synchronous wrapper for existing UI calls
@@ -554,43 +665,52 @@ class AppState extends ChangeNotifier {
     String? abhaId,
     String? bloodGroup,
   }) {
+    final patientId = 'P-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+    final generatedAbha = (abhaId != null && abhaId.isNotEmpty)
+        ? abhaId
+        : '91-${_uuid.v4().substring(0, 4)}-${_uuid.v4().substring(0, 4)}';
+
     final newPatient = Patient(
-      id: 'P-${100 + _patients.length + 1}',
+      id: patientId,
       name: name,
       age: age,
       gender: gender,
       phone: phone,
       village: village,
-      abhaId: (abhaId != null && abhaId.isNotEmpty) ? abhaId : '91-${_uuid.v4().substring(0, 4)}-${_uuid.v4().substring(0, 4)}',
+      abhaId: generatedAbha,
       bloodGroup: bloodGroup,
-      isSynced: _isOnline,
+      createdAt: DateTime.now(),
+      isSynced: false,
     );
 
+    LocalDatabase.instance.savePatient(newPatient.toMap());
+
+    final syncItem = SyncItem(
+      id: _uuid.v4(),
+      entityType: 'PATIENT',
+      action: 'CREATE',
+      description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+      payload: newPatient.toMap(),
+    );
+
+    LocalDatabase.instance.queueMutation({
+      'operationId': syncItem.id,
+      'entityId': newPatient.id,
+      'entity': 'PATIENT',
+      'operation': 'CREATE',
+      'payload': jsonEncode(newPatient.toMap()),
+      'createdTime': DateTime.now().toIso8601String(),
+      'retryCount': 0,
+      'syncStatus': 'PENDING',
+    });
+
+    _syncQueue.add(syncItem);
     _patients.insert(0, newPatient);
     _currentPatient = newPatient;
-    _totalPatientsCount += 1;
-
-    if (!_isOnline) {
-      _syncQueue.add(SyncItem(
-        id: _uuid.v4(),
-        entityType: 'PATIENT',
-        action: 'CREATE',
-        description: 'New Patient: ${newPatient.name} (${newPatient.village})',
-        payload: newPatient.toMap(),
-      ));
-    } else {
-      // Trigger fire-and-forget sync to backend
-      _apiService.createPatient(
-        name: name,
-        age: age,
-        gender: gender,
-        phone: phone,
-        village: village,
-        abhaId: abhaId,
-      );
-    }
-
+    _totalPatientsCount = _patients.length;
     notifyListeners();
+
+    _syncPatientInBackground(newPatient, syncItem);
     return newPatient;
   }
 
@@ -630,7 +750,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Create assessment and trigger XAI Triage from backend POST /api/assessments
+  /// Create assessment with instant local calculation & asynchronous background sync
   Future<Assessment> createAssessmentAsync({
     required String patientId,
     required String primarySymptom,
@@ -639,88 +759,105 @@ class AppState extends ChangeNotifier {
     required Vitals vitals,
     String? clinicalNotes,
   }) async {
-    Assessment assessment = Assessment(
-      id: 'ASM-${100 + (_patientAssessments[patientId]?.length ?? 0) + 1}',
+    final assessmentId = 'ASM-${100 + (_patientAssessments[patientId]?.length ?? 0) + 1}';
+    final assessment = Assessment(
+      id: assessmentId,
       patientId: patientId,
       primarySymptom: primarySymptom,
       severity: severity,
       durationDays: durationDays,
       vitals: vitals,
       clinicalNotes: clinicalNotes,
-      isSynced: _isOnline,
+      timestamp: DateTime.now(),
+      isSynced: false,
     );
 
-    if (_isOnline) {
-      try {
-        final symptomsPayload = [
-          {
-            'name': primarySymptom,
-            'duration': '$durationDays days',
-            'severity': severity.toUpperCase(),
-          }
-        ];
-        final vitalsPayload = vitals.toBackendVitalsList();
+    // 1. Instant local triage calculation
+    _currentTriageResult = _computeTriage(assessment);
 
-        final res = await _apiService.createAssessment(
-          patientId: patientId,
-          symptoms: symptomsPayload,
-          vitals: vitalsPayload,
-          provenance: 'WORKER_RECORDED',
-        );
+    // 2. Enqueue mutation in SQLite and in-memory queue
+    final syncItem = SyncItem(
+      id: _uuid.v4(),
+      entityType: 'ASSESSMENT',
+      action: 'CREATE',
+      description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
+      payload: assessment.toMap(),
+    );
 
-        if (res.isSuccess && res.data != null) {
-          assessment = Assessment.fromMap(res.data!);
-
-          // If backend generated AI Recommendation, use it
-          if (assessment.rawAiRecommendation != null) {
-            _currentTriageResult = TriageResult.fromBackendRecommendation(
-              assessment.rawAiRecommendation!,
-              assessmentId: assessment.id,
-              fallbackSymptom: primarySymptom,
-            );
-          } else {
-            _currentTriageResult = _computeTriage(assessment);
-          }
-        } else {
-          _currentTriageResult = _computeTriage(assessment);
-          _syncQueue.add(SyncItem(
-            id: _uuid.v4(),
-            entityType: 'ASSESSMENT',
-            action: 'CREATE',
-            description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
-            payload: assessment.toMap(),
-          ));
-        }
-      } catch (e) {
-        _currentTriageResult = _computeTriage(assessment);
-        _syncQueue.add(SyncItem(
-          id: _uuid.v4(),
-          entityType: 'ASSESSMENT',
-          action: 'CREATE',
-          description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
-          payload: assessment.toMap(),
-        ));
-      }
-    } else {
-      _currentTriageResult = _computeTriage(assessment);
-      _syncQueue.add(SyncItem(
-        id: _uuid.v4(),
-        entityType: 'ASSESSMENT',
-        action: 'CREATE',
-        description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
-        payload: assessment.toMap(),
-      ));
+    try {
+      await LocalDatabase.instance.queueMutation({
+        'operationId': syncItem.id,
+        'entityId': assessment.id,
+        'entity': 'ASSESSMENT',
+        'operation': 'CREATE',
+        'payload': jsonEncode(assessment.toMap()),
+        'createdTime': DateTime.now().toIso8601String(),
+        'retryCount': 0,
+        'syncStatus': 'PENDING',
+      });
+    } catch (e) {
+      debugPrint('LocalDatabase queueMutation assessment error: $e');
     }
 
+    _syncQueue.add(syncItem);
+
+    // 3. Update in-memory state
     if (!_patientAssessments.containsKey(patientId)) {
       _patientAssessments[patientId] = [];
     }
     _patientAssessments[patientId]!.insert(0, assessment);
     _currentAssessment = assessment;
     _activeAssessmentsCount += 1;
-
     notifyListeners();
+
+    // 4. Detached background upload (fire-and-forget)
+    _syncAssessmentInBackground(assessment, syncItem);
+
+    // 5. Return immediately
     return assessment;
+  }
+
+  void _syncAssessmentInBackground(Assessment assessment, SyncItem syncItem) {
+    if (!_isOnline) return;
+
+    unawaited(() async {
+      try {
+        final symptomsPayload = [
+          {
+            'name': assessment.primarySymptom,
+            'duration': '${assessment.durationDays} days',
+            'severity': assessment.severity.toUpperCase(),
+          }
+        ];
+        final vitalsPayload = assessment.vitals.toBackendVitalsList();
+
+        final res = await _apiService.createAssessment(
+          patientId: assessment.patientId,
+          symptoms: symptomsPayload,
+          vitals: vitalsPayload,
+          provenance: 'WORKER_RECORDED',
+        );
+
+        if (res.isSuccess && res.data != null) {
+          final serverAssessment = Assessment.fromMap(res.data!);
+          if (serverAssessment.rawAiRecommendation != null) {
+            _currentTriageResult = TriageResult.fromBackendRecommendation(
+              serverAssessment.rawAiRecommendation!,
+              assessmentId: serverAssessment.id,
+              fallbackSymptom: assessment.primarySymptom,
+            );
+          }
+          await LocalDatabase.instance.markMutationSynced(syncItem.id);
+          final qIdx = _syncQueue.indexWhere((s) => s.id == syncItem.id);
+          if (qIdx >= 0) {
+            _syncQueue[qIdx] = _syncQueue[qIdx].copyWith(status: 'SYNCED');
+          }
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint('Background assessment upload failed (kept in offline queue): $e');
+      }
+    }());
   }
 
   /// Synchronous wrapper
@@ -1021,48 +1158,97 @@ class AppState extends ChangeNotifier {
 
   /// Two-way sync: Push batch mutations to POST /api/sync and pull delta from GET /api/sync/pull
   Future<bool> syncAllQueueItems() async {
+    if (!_isOnline) {
+      // Cannot sync while offline: preserve pending queue
+      for (int i = 0; i < _syncQueue.length; i++) {
+        _syncQueue[i] = _syncQueue[i].copyWith(status: 'PENDING');
+      }
+      notifyListeners();
+      return false;
+    }
+
     for (int i = 0; i < _syncQueue.length; i++) {
       _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCING');
     }
     notifyListeners();
 
-    bool syncSuccess = true;
+    bool syncSuccess = false;
 
-    if (_isOnline && _syncQueue.isNotEmpty) {
-      try {
-        final mutations = _syncQueue.map((item) => item.toBackendMutation()).toList();
+    try {
+      final pendingOps = await LocalDatabase.instance.getPendingMutations();
+      final List<Map<String, dynamic>> mutations = [];
+
+      if (pendingOps.isNotEmpty) {
+        for (var p in pendingOps) {
+          Map<String, dynamic> payloadMap = {};
+          try {
+            payloadMap = jsonDecode(p['payload'] as String);
+          } catch (_) {}
+          mutations.add({
+            'operationId': p['operationId'],
+            'entity': p['entity'],
+            'action': p['operation'],
+            'payload': payloadMap,
+            'deviceId': 'flutter-mobile-client',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+        }
+      } else if (_syncQueue.isNotEmpty) {
+        mutations.addAll(_syncQueue.map((item) => item.toBackendMutation()));
+      }
+
+      if (mutations.isNotEmpty) {
         final pushResponse = await _apiService.pushSyncBatch(
           workerId: _workerId,
           mutations: mutations,
         );
 
-        if (pushResponse.isSuccess) {
-          for (int i = 0; i < _syncQueue.length; i++) {
-            _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCED');
+        if (pushResponse.isSuccess && pushResponse.data != null) {
+          final results = pushResponse.data!['results'] as List?;
+          if (results != null) {
+            for (var res in results) {
+              if (res is Map &&
+                  (res['status'] == 'SUCCESS' || res['status'] == 'ALREADY_SYNCED')) {
+                final opId = res['operationId']?.toString();
+                if (opId != null) {
+                  await LocalDatabase.instance.markMutationSynced(opId);
+                }
+                if (res['entityId'] != null) {
+                  await LocalDatabase.instance.markPatientSynced(res['entityId'].toString());
+                  final patIdx = _patients.indexWhere((p) => p.id == res['entityId'].toString());
+                  if (patIdx >= 0) {
+                    _patients[patIdx] = _patients[patIdx].copyWith(isSynced: true);
+                  }
+                }
+              }
+            }
           }
+          await LocalDatabase.instance.deleteSyncedMutations();
+          _syncQueue.removeWhere((item) => true);
+          syncSuccess = true;
           notifyListeners();
         } else {
-          syncSuccess = false;
+          // Request failed: revert in-memory items to PENDING
+          for (int i = 0; i < _syncQueue.length; i++) {
+            _syncQueue[i] = _syncQueue[i].copyWith(status: 'PENDING');
+          }
+          notifyListeners();
         }
-      } catch (e) {
-        syncSuccess = false;
+      } else {
+        syncSuccess = true;
       }
-    } else {
-      await Future.delayed(const Duration(milliseconds: 600));
+    } catch (e) {
+      debugPrint('Sync batch failed: $e');
       for (int i = 0; i < _syncQueue.length; i++) {
-        _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCED');
+        _syncQueue[i] = _syncQueue[i].copyWith(status: 'PENDING');
       }
       notifyListeners();
     }
 
-    // Pull delta updates from backend
-    if (_isOnline) {
+    // Pull delta updates from backend if sync was successful
+    if (syncSuccess && _isOnline) {
       await loadDashboardData();
     }
-
-    await Future.delayed(const Duration(milliseconds: 400));
-    _syncQueue.clear();
-    notifyListeners();
 
     return syncSuccess;
   }
