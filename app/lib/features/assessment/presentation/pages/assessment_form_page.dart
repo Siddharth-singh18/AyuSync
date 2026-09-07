@@ -59,7 +59,7 @@ class _AssessmentFormPageState extends State<AssessmentFormPage> {
       bloodGlucose: double.tryParse(_glucoseController.text.trim()),
     );
 
-    appState.createAssessment(
+    await appState.createAssessmentAsync(
       patientId: patient.id,
       primarySymptom: _symptomController.text.trim(),
       severity: _severity,
@@ -68,7 +68,6 @@ class _AssessmentFormPageState extends State<AssessmentFormPage> {
       clinicalNotes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
     );
 
-    await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     setState(() => _isProcessing = false);
 
@@ -171,7 +170,7 @@ class _AssessmentFormPageState extends State<AssessmentFormPage> {
                   Expanded(
                     flex: 1,
                     child: DropdownButtonFormField<String>(
-                      value: _severity,
+                      initialValue: _severity,
                       decoration: const InputDecoration(
                         labelText: 'Severity *',
                         border: OutlineInputBorder(),

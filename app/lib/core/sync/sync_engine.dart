@@ -1,8 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../network/api_service.dart';
 
 class SyncEngine {
   static final SyncEngine _instance = SyncEngine._internal();
@@ -10,6 +11,7 @@ class SyncEngine {
   SyncEngine._internal();
 
   Database? _db;
+  final ApiService _apiService = ApiService();
 
   Future<void> init() async {
     _db = await openDatabase(
@@ -45,9 +47,9 @@ class SyncEngine {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
-    var connectivityResult = await Connectivity().checkConnectivity();
+    final connectivityResult = await Connectivity().checkConnectivity();
 
-    if (connectivityResult != ConnectivityResult.none) {
+    if (!connectivityResult.contains(ConnectivityResult.none)) {
       syncNow();
     }
   }
@@ -60,33 +62,40 @@ class SyncEngine {
     if (pending.isEmpty) return;
 
     try {
-      final response = await http.post(
-        Uri.parse('http://localhost:5000/api/sync'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'workerId': 'flutter-worker-1',
-          'mutations': pending
-              .map((p) => {
-                    'operationId': p['id'],
-                    'entity': p['entity'],
-                    'action': p['action'],
-                    'payload': jsonDecode(p['payload'] as String),
-                  })
-              .toList()
-        }),
+      final mutations = pending.map((p) {
+        return {
+          'operationId': p['id'],
+          'entity': p['entity'],
+          'action': p['action'],
+          'payload': jsonDecode(p['payload'] as String),
+          'deviceId': 'flutter-mobile-client',
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+      }).toList();
+
+      final response = await _apiService.pushSyncBatch(
+        workerId: 'ASHA-CG-4902',
+        mutations: mutations,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        for (var res in data['results']) {
-          if (res['status'] == 'SUCCESS' || res['status'] == 'ALREADY_SYNCED') {
-            await _db!.update('mutation_queue', {'status': 'SYNCED'},
-                where: 'id = ?', whereArgs: [res['operationId']]);
+      if (response.isSuccess && response.data != null) {
+        final results = response.data!['results'] as List?;
+        if (results != null) {
+          for (var res in results) {
+            if (res is Map &&
+                (res['status'] == 'SUCCESS' || res['status'] == 'ALREADY_SYNCED')) {
+              await _db!.update(
+                'mutation_queue',
+                {'status': 'SYNCED'},
+                where: 'id = ?',
+                whereArgs: [res['operationId']],
+              );
+            }
           }
         }
       }
     } catch (e) {
-      print('Sync failed: $e');
+      debugPrint('SyncEngine push failed: $e');
     }
   }
 }

@@ -95,7 +95,7 @@ class CaseStatusPage extends StatelessWidget {
                     const Row(
                       children: [
                         Icon(Icons.sync_alt, size: 18, color: Color(0xFF2563EB)),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Closed-Loop Continuity Status',
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),

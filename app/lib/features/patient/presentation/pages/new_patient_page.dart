@@ -15,6 +15,7 @@ class NewPatientPage extends StatefulWidget {
 
 class _NewPatientPageState extends State<NewPatientPage> {
   int _currentStep = 1; // 1: Demographics, 2: Basic Health, 3: Complaint & Vitals
+  bool _isSaving = false;
 
   // --- Step 1 Controllers & State ---
   final _nameController = TextEditingController(text: '');
@@ -102,70 +103,79 @@ class _NewPatientPageState extends State<NewPatientPage> {
     }
   }
 
-  void _onSavePatient(AppState appState) {
-    // 1. Register Patient with complete demographic and health history
-    final age = _calculateAgeFromDob(_dobController.text);
-    final patient = appState.registerPatient(
-      name: _nameController.text.trim().isEmpty ? 'Citizen Patient' : _nameController.text.trim(),
-      age: age,
-      gender: _selectedGender ?? 'Female',
-      phone: _phoneController.text.trim().isEmpty ? '+91 98765 43210' : '+91 ${_phoneController.text.trim()}',
-      village: _villageController.text.trim().isEmpty ? 'Phulgaon' : _villageController.text.trim(),
-      abhaId: _abhaController.text.trim().isNotEmpty ? _abhaController.text.trim() : null,
-      bloodGroup: _selectedBloodGroup ?? 'O+',
-    );
+  void _onSavePatient(AppState appState) async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
 
-    // Update extended attributes
-    final updatedPatient = patient.copyWith(
-      dob: _dobController.text.trim(),
-      emergencyContact: _emergencyPhoneController.text.trim(),
-      preferredLanguage: _selectedLanguage ?? 'Hindi',
-      district: _districtController.text.trim(),
-      state: _selectedState ?? 'Chhattisgarh',
-      pinCode: _pinController.text.trim(),
-      address: _addressController.text.trim(),
-      allergies: _selectedAllergy ?? 'None',
-      existingConditions: _existingConditionsController.text.trim(),
-      currentMedications: _currentMedicationsController.text.trim(),
-      pastHistory: _pastHistoryController.text.trim(),
-    );
-    appState.setCurrentPatient(updatedPatient);
+    try {
+      // 1. Register Patient with complete demographic and health history
+      final age = _calculateAgeFromDob(_dobController.text);
+      final patient = await appState.registerPatientAsync(
+        name: _nameController.text.trim().isEmpty ? 'Citizen Patient' : _nameController.text.trim(),
+        age: age,
+        gender: _selectedGender ?? 'Female',
+        phone: _phoneController.text.trim().isEmpty ? '+91 98765 43210' : '+91 ${_phoneController.text.trim()}',
+        village: _villageController.text.trim().isEmpty ? 'Phulgaon' : _villageController.text.trim(),
+        abhaId: _abhaController.text.trim().isNotEmpty ? _abhaController.text.trim() : null,
+        bloodGroup: _selectedBloodGroup ?? 'O+',
+        dob: _dobController.text.trim().isNotEmpty ? _dobController.text.trim() : null,
+        emergencyContact: _emergencyPhoneController.text.trim().isNotEmpty ? _emergencyPhoneController.text.trim() : null,
+        preferredLanguage: _selectedLanguage ?? 'Hindi',
+        district: _districtController.text.trim().isNotEmpty ? _districtController.text.trim() : null,
+        state: _selectedState ?? 'Chhattisgarh',
+        pinCode: _pinController.text.trim().isNotEmpty ? _pinController.text.trim() : null,
+        address: _addressController.text.trim().isNotEmpty ? _addressController.text.trim() : null,
+        allergies: _selectedAllergy ?? 'None',
+        existingConditions: _existingConditionsController.text.trim().isNotEmpty ? _existingConditionsController.text.trim() : null,
+        currentMedications: _currentMedicationsController.text.trim().isNotEmpty ? _currentMedicationsController.text.trim() : null,
+        pastHistory: _pastHistoryController.text.trim().isNotEmpty ? _pastHistoryController.text.trim() : null,
+      );
 
-    // 2. Create Assessment if symptoms/vitals entered
-    final primarySymptomText = _symptomsController.text.trim().isNotEmpty
-        ? _symptomsController.text.trim()
-        : (_healthConcernController.text.trim().isNotEmpty
-            ? _healthConcernController.text.trim()
-            : 'General Health Assessment');
+      // 2. Create Assessment if symptoms/vitals entered
+      final primarySymptomText = _symptomsController.text.trim().isNotEmpty
+          ? _symptomsController.text.trim()
+          : (_healthConcernController.text.trim().isNotEmpty
+              ? _healthConcernController.text.trim()
+              : 'General Health Assessment');
 
-    final vitals = Vitals(
-      temperature: double.tryParse(_tempController.text.trim()),
-      systolicBp: int.tryParse(_systolicController.text.trim()),
-      diastolicBp: int.tryParse(_diastolicController.text.trim()),
-      pulseRate: int.tryParse(_pulseController.text.trim()),
-      spo2: int.tryParse(_spo2Controller.text.trim()),
-      respiratoryRate: int.tryParse(_respRateController.text.trim()),
-      weight: double.tryParse(_weightController.text.trim()),
-    );
+      final vitals = Vitals(
+        temperature: double.tryParse(_tempController.text.trim()),
+        systolicBp: int.tryParse(_systolicController.text.trim()),
+        diastolicBp: int.tryParse(_diastolicController.text.trim()),
+        pulseRate: int.tryParse(_pulseController.text.trim()),
+        spo2: int.tryParse(_spo2Controller.text.trim()),
+        respiratoryRate: int.tryParse(_respRateController.text.trim()),
+        weight: double.tryParse(_weightController.text.trim()),
+      );
 
-    appState.createAssessment(
-      patientId: updatedPatient.id,
-      primarySymptom: primarySymptomText,
-      severity: _selectedSeverity.toUpperCase(),
-      durationDays: int.tryParse(_duration.split(' ').first) ?? 3,
-      vitals: vitals,
-      clinicalNotes: _observationsController.text.trim().isNotEmpty
-          ? _observationsController.text.trim()
-          : 'Concerns: ${_healthConcernController.text.trim()}',
-    );
+      await appState.createAssessmentAsync(
+        patientId: patient.id,
+        primarySymptom: primarySymptomText,
+        severity: _selectedSeverity.toUpperCase(),
+        durationDays: int.tryParse(_duration.split(' ').first) ?? 3,
+        vitals: vitals,
+        clinicalNotes: _observationsController.text.trim().isNotEmpty
+            ? _observationsController.text.trim()
+            : 'Concerns: ${_healthConcernController.text.trim()}',
+      );
 
-    // 3. Navigate to Success Screen
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RegistrationSuccessPage(patient: updatedPatient),
-      ),
-    );
+      if (!mounted) return;
+
+      // 3. Navigate to Success Screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RegistrationSuccessPage(patient: patient),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving patient: $e')),
+        );
+      }
+    }
   }
 
   int _calculateAgeFromDob(String dob) {
@@ -184,7 +194,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
+    final appState = Provider.of<AppState>(context, listen: false);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -588,9 +598,9 @@ class _NewPatientPageState extends State<NewPatientPage> {
               children: [
                 Expanded(
                   child: _buildStepperField(
-                    label: 'Body Temperature (°C) :',
+                    label: 'Temperature (°F/°C):',
                     controller: _tempController,
-                    placeholder: 'Eg. 98°C',
+                    placeholder: '98.6',
                     onIncrement: () {
                       final val = (double.tryParse(_tempController.text) ?? 98.6) + 0.2;
                       _tempController.text = val.toStringAsFixed(1);
@@ -604,9 +614,9 @@ class _NewPatientPageState extends State<NewPatientPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStepperField(
-                    label: 'Pulse Rate (Bpm):',
+                    label: 'Pulse Rate (bpm):',
                     controller: _pulseController,
-                    placeholder: 'Eg. 72 Bpm',
+                    placeholder: '72',
                     onIncrement: () {
                       final val = (int.tryParse(_pulseController.text) ?? 72) + 1;
                       _pulseController.text = val.toString();
@@ -624,9 +634,9 @@ class _NewPatientPageState extends State<NewPatientPage> {
               children: [
                 Expanded(
                   child: _buildStepperField(
-                    label: 'Respiratory Rate (Breaths/Min):',
+                    label: 'Resp. Rate (/min):',
                     controller: _respRateController,
-                    placeholder: 'Eg. 18 Breaths/Min',
+                    placeholder: '18',
                     onIncrement: () {
                       final val = (int.tryParse(_respRateController.text) ?? 18) + 1;
                       _respRateController.text = val.toString();
@@ -640,9 +650,9 @@ class _NewPatientPageState extends State<NewPatientPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStepperField(
-                    label: 'Weight (Kg):',
+                    label: 'Weight (kg):',
                     controller: _weightController,
-                    placeholder: 'Eg. 72 Kg',
+                    placeholder: '65.0',
                     onIncrement: () {
                       final val = (double.tryParse(_weightController.text) ?? 65.0) + 0.5;
                       _weightController.text = val.toStringAsFixed(1);
@@ -664,53 +674,53 @@ class _NewPatientPageState extends State<NewPatientPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Blood Pressure (MmHg):',
+                        'BP (Systolic / Diastolic):',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textDark,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInputContainer(
-                              height: 38,
+                      _buildInputContainer(
+                        child: Row(
+                          children: [
+                            Expanded(
                               child: TextField(
                                 controller: _systolicController,
                                 keyboardType: TextInputType.number,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textDark),
                                 decoration: const InputDecoration(
                                   border: InputBorder.none,
-                                  hintText: 'Systolic',
+                                  hintText: '120',
                                   hintStyle: TextStyle(fontSize: 11, color: Color(0xFF6B7F72)),
                                   isDense: true,
+                                  contentPadding: EdgeInsets.zero,
                                 ),
                               ),
                             ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4.0),
-                            child: Text('/', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                          ),
-                          Expanded(
-                            child: _buildInputContainer(
-                              height: 38,
+                            const Text('/', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF6B7F72))),
+                            Expanded(
                               child: TextField(
                                 controller: _diastolicController,
                                 keyboardType: TextInputType.number,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textDark),
                                 decoration: const InputDecoration(
                                   border: InputBorder.none,
-                                  hintText: 'Diastolic',
+                                  hintText: '80',
                                   hintStyle: TextStyle(fontSize: 11, color: Color(0xFF6B7F72)),
                                   isDense: true,
+                                  contentPadding: EdgeInsets.zero,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                            const Text(' mmHg', style: TextStyle(fontSize: 9, color: Color(0xFF6B7F72), fontWeight: FontWeight.w500)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -720,7 +730,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
                   child: _buildFormField(
                     label: 'SpO₂ (%):',
                     controller: _spo2Controller,
-                    placeholder: 'Eg. 98%',
+                    placeholder: '98%',
                     keyboardType: TextInputType.number,
                   ),
                 ),
@@ -998,29 +1008,39 @@ class _NewPatientPageState extends State<NewPatientPage> {
               Expanded(
                 child: TextField(
                   controller: controller,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.bold),
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     hintText: placeholder,
                     hintStyle: const TextStyle(fontSize: 11, color: Color(0xFF6B7F72)),
                     isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
-                    onTap: onIncrement,
-                    child: const Icon(Icons.keyboard_arrow_up_rounded, size: 14, color: AppColors.forest),
-                  ),
-                  InkWell(
                     onTap: onDecrement,
-                    child: const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.forest),
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2.0),
+                      child: Icon(Icons.remove_circle_outline_rounded, size: 16, color: AppColors.forest),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  InkWell(
+                    onTap: onIncrement,
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2.0),
+                      child: Icon(Icons.add_circle_outline_rounded, size: 16, color: AppColors.forest),
+                    ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         ),
@@ -1033,7 +1053,8 @@ class _NewPatientPageState extends State<NewPatientPage> {
   // ==========================================
   Widget _buildBottomActionBar(AppState appState) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
       decoration: const BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -1082,7 +1103,7 @@ class _NewPatientPageState extends State<NewPatientPage> {
                 ),
               )
             : InkWell(
-                onTap: () => _onSavePatient(appState),
+                onTap: _isSaving ? null : () => _onSavePatient(appState),
                 borderRadius: BorderRadius.circular(30),
                 child: Container(
                   height: 48,
@@ -1098,16 +1119,22 @@ class _NewPatientPageState extends State<NewPatientPage> {
                       )
                     ],
                   ),
-                  child: const Center(
-                    child: Text(
-                      'Save Patient',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
+                  child: Center(
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2),
+                          )
+                        : const Text(
+                            'Save Patient',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
                   ),
                 ),
               ),

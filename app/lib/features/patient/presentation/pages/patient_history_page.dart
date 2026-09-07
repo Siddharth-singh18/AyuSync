@@ -2,8 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/state/app_state.dart';
 
-class PatientHistoryPage extends StatelessWidget {
+class PatientHistoryPage extends StatefulWidget {
   const PatientHistoryPage({super.key});
+
+  @override
+  State<PatientHistoryPage> createState() => _PatientHistoryPageState();
+}
+
+class _PatientHistoryPageState extends State<PatientHistoryPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      final patient = appState.currentPatient ?? (appState.patients.isNotEmpty ? appState.patients.first : null);
+      if (patient != null) {
+        appState.fetchPatientTimeline(patient.id);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +203,7 @@ class PatientHistoryPage extends StatelessWidget {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -4),
                 ),

@@ -119,7 +119,7 @@ class _RecordFollowUpPageState extends State<RecordFollowUpPage> {
                   title: const Text('Medication Adherence Check', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Is patient consuming prescribed medications on schedule?'),
                   value: _adherenceConfirmed,
-                  activeColor: const Color(0xFF2563EB),
+                  activeThumbColor: const Color(0xFF2563EB),
                   onChanged: (val) => setState(() => _adherenceConfirmed = val),
                 ),
               ),

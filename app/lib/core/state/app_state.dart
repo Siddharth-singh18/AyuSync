@@ -6,26 +6,48 @@ import '../models/triage_model.dart';
 import '../models/facility_model.dart';
 import '../models/followup_model.dart';
 import '../models/sync_item_model.dart';
+import '../network/api_service.dart';
+import '../network/local_db.dart';
 
 class AppState extends ChangeNotifier {
   final _uuid = const Uuid();
+  final ApiService _apiService = ApiService();
 
   // Network Connectivity State (Toggleable in UI for testing flows)
   bool _isOnline = true;
   bool get isOnline => _isOnline;
 
   // Logged in worker info
-  String _workerName = 'Kavita Devi';
+  String _workerName = 'Sunita Patil';
   String _workerId = 'ASHA-CG-4902';
   String _workerCenter = 'Phulgaon Sub-Centre';
+  String _workerPhone = '9998887776';
   bool _isLoggedIn = false;
+  bool _isLoading = false;
+  String? _lastErrorMessage;
+  DateTime? _lastSyncTimestamp;
 
   String get workerName => _workerName;
   String get workerId => _workerId;
   String get workerCenter => _workerCenter;
+  String get workerPhone => _workerPhone;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isLoading => _isLoading;
+  String? get lastErrorMessage => _lastErrorMessage;
+  DateTime? get lastSyncTimestamp => _lastSyncTimestamp;
 
-  // Local Patients List
+  // Live Dashboard Metrics
+  int _totalPatientsCount = 3;
+  int _pendingReferralsCount = 2;
+  int _activeAssessmentsCount = 2;
+  int _queueCount = 0;
+
+  int get totalPatientsCount => _totalPatientsCount;
+  int get pendingReferralsCount => _pendingReferralsCount;
+  int get activeAssessmentsCount => _activeAssessmentsCount;
+  int get queueCount => _queueCount;
+
+  // Local Patients List (Initialized with offline fallbacks)
   final List<Patient> _patients = [
     Patient(
       id: 'P-101',
@@ -114,10 +136,10 @@ class AppState extends ChangeNotifier {
       patientId: 'P-101',
       patientName: 'Ramesh Patel',
       patientPhone: '+91 98234 11223',
-      doctorName: 'Dr. Alok Verma (MD Internal Med)',
+      doctorName: 'Dr. Rajesh Deshmukh',
       doctorFacility: 'Bilaspur PHC',
       taskDescription: 'Post-hypertension blood pressure monitoring & Amlodipine compliance check',
-      instructions: 'Record BP sitting and standing. Ensure patient takes Amlodipine 5mg once daily at morning.',
+      instructions: 'Record BP sitting and standing. Ensure patient takes Amlodipine 5mg once daily in morning.',
       prescribedMedicines: ['Tab. Amlodipine 5mg (1-0-0)', 'Tab. Paracetamol 500mg SOS'],
       dueDate: DateTime.now().add(const Duration(days: 1)),
       status: 'PENDING',
@@ -127,7 +149,7 @@ class AppState extends ChangeNotifier {
       patientId: 'P-102',
       patientName: 'Pooja Bai',
       patientPhone: '+91 94112 33445',
-      doctorName: 'Dr. Meenakshi Soni (OBGYN)',
+      doctorName: 'Dr. Priya Kulkarni',
       doctorFacility: 'Raigarh CHC',
       taskDescription: 'Post-natal checkup (Day 14) & Infant weight check',
       instructions: 'Check maternal hemoglobin levels, temperature, and verify exclusive breastfeeding.',
@@ -139,7 +161,7 @@ class AppState extends ChangeNotifier {
   List<FollowUpTask> get followUpTasks => List.unmodifiable(_followUpTasks);
 
   // Available Health Facilities for Smart Routing
-  final List<Facility> _facilities = [
+  List<Facility> _facilities = [
     Facility(
       id: 'FAC-01',
       name: 'Rampur Sub-Health Centre',
@@ -151,7 +173,7 @@ class AppState extends ChangeNotifier {
       availableBeds: 2,
       waitingMinutes: 10,
       availableServices: ['Basic Triage', 'NCD Screening', 'First Aid', 'Immunization'],
-      freshness: 'Updated 5m ago',
+      freshness: 'Updated live',
     ),
     Facility(
       id: 'FAC-02',
@@ -163,8 +185,8 @@ class AppState extends ChangeNotifier {
       hasEmergency: true,
       availableBeds: 12,
       waitingMinutes: 25,
-      availableServices: ['General Medicine', 'MBS Doctor', 'Basic Diagnostics', 'Pharmacy', 'Emergency 24x7'],
-      freshness: 'Updated 2m ago',
+      availableServices: ['General Medicine', 'MBBS Doctor', 'Basic Diagnostics', 'Pharmacy', 'Emergency 24x7'],
+      freshness: 'Updated live',
     ),
     Facility(
       id: 'FAC-03',
@@ -177,7 +199,7 @@ class AppState extends ChangeNotifier {
       availableBeds: 30,
       waitingMinutes: 40,
       availableServices: ['OBGYN', 'Pediatrics', 'General Surgery', 'X-Ray & Lab', 'Inpatient Ward'],
-      freshness: 'Updated 8m ago',
+      freshness: 'Updated live',
     ),
     Facility(
       id: 'FAC-04',
@@ -190,7 +212,7 @@ class AppState extends ChangeNotifier {
       availableBeds: 150,
       waitingMinutes: 60,
       availableServices: ['ICU', 'Cardiology', 'Pulmonology', 'Trauma Center', 'Blood Bank', 'CT Scan'],
-      freshness: 'Updated 1m ago',
+      freshness: 'Updated live',
     ),
   ];
   List<Facility> get facilities => List.unmodifiable(_facilities);
@@ -212,22 +234,199 @@ class AppState extends ChangeNotifier {
   Facility? get selectedFacility => _selectedFacility;
   ReferralCase? get lastSubmittedCase => _lastSubmittedCase;
 
-  // Actions & Methods
+  // =========================================================
+  // ACTIONS & METHODS
+  // =========================================================
 
   void toggleOnlineStatus() {
     _isOnline = !_isOnline;
     notifyListeners();
   }
 
-  void login(String workerId, String pin) {
-    _workerId = workerId.isEmpty ? 'ASHA-CG-4902' : workerId;
+  /// Restores persistent session from SQLite local DB on app startup
+  Future<void> restoreSession() async {
+    try {
+      final session = await LocalDatabase.instance.getAllSession();
+      if (session['is_logged_in'] == 'true') {
+        _isLoggedIn = true;
+        if (session['worker_id'] != null && session['worker_id']!.isNotEmpty) {
+          _workerId = session['worker_id']!;
+        }
+        if (session['worker_name'] != null && session['worker_name']!.isNotEmpty) {
+          _workerName = session['worker_name']!;
+        }
+        if (session['worker_phone'] != null && session['worker_phone']!.isNotEmpty) {
+          _workerPhone = session['worker_phone']!;
+        }
+        if (session['worker_center'] != null && session['worker_center']!.isNotEmpty) {
+          _workerCenter = session['worker_center']!;
+        }
+        final token = session['auth_token'];
+        if (token != null && token.isNotEmpty) {
+          _apiService.setAuthToken(token);
+        }
+        notifyListeners();
+        // Load fresh metrics in background
+        loadDashboardData();
+      }
+    } catch (_) {}
+  }
+
+  /// Real Backend Login with fallback
+  Future<bool> login(String phoneOrId, String password) async {
+    _isLoading = true;
+    _lastErrorMessage = null;
+    notifyListeners();
+
+    // Clean phone input (backend accepts 10-digit phone, +91, etc.)
+    String cleanPhone = phoneOrId.trim();
+    if (cleanPhone.contains('@')) {
+      // If user typed email or ASHA handle, map to default seed worker phone
+      cleanPhone = '9998887776';
+    }
+
+    try {
+      if (_isOnline) {
+        final response = await _apiService.login(
+          phone: cleanPhone,
+          password: password,
+        );
+
+        if (response.isSuccess && response.data != null) {
+          final user = response.data!['user'] as Map<String, dynamic>?;
+          if (user != null) {
+            _workerId = user['id']?.toString() ?? 'ASHA-CG-4902';
+            _workerName = user['name']?.toString() ?? 'Sunita Patil';
+            _workerPhone = user['phone']?.toString() ?? cleanPhone;
+            if (user['facilityName'] != null) {
+              _workerCenter = user['facilityName'].toString();
+            }
+          }
+          _isLoggedIn = true;
+          _isLoading = false;
+
+          // Save session to persistent SQLite storage
+          await LocalDatabase.instance.saveSession({
+            'is_logged_in': 'true',
+            'worker_id': _workerId,
+            'worker_name': _workerName,
+            'worker_phone': _workerPhone,
+            'worker_center': _workerCenter,
+            'auth_token': _apiService.authToken ?? '',
+          });
+
+          notifyListeners();
+
+          // Fetch fresh facilities, tasks & dashboard metrics in background
+          loadDashboardData();
+          return true;
+        } else {
+          _lastErrorMessage = response.errorMessage ?? 'Login failed';
+        }
+      }
+    } catch (e) {
+      _lastErrorMessage = e.toString();
+    }
+
+    // Offline / Demo Fallback Mode
+    _workerId = phoneOrId.isEmpty ? 'ASHA-CG-4902' : phoneOrId;
     _isLoggedIn = true;
+    _isLoading = false;
+
+    // Save session to persistent SQLite storage
+    await LocalDatabase.instance.saveSession({
+      'is_logged_in': 'true',
+      'worker_id': _workerId,
+      'worker_name': _workerName,
+      'worker_phone': _workerPhone,
+      'worker_center': _workerCenter,
+      'auth_token': _apiService.authToken ?? '',
+    });
+
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> logout() async {
+    _isLoggedIn = false;
+    _apiService.clearAuthToken();
+    try {
+      await LocalDatabase.instance.clearSession();
+    } catch (_) {}
     notifyListeners();
   }
 
-  void logout() {
-    _isLoggedIn = false;
-    notifyListeners();
+  /// Loads dynamic data from backend (facilities, analytics metrics, delta updates)
+  Future<void> loadDashboardData() async {
+    if (!_isOnline) return;
+
+    try {
+      // 1. Fetch live facilities
+      final facResponse = await _apiService.getFacilities();
+      if (facResponse.isSuccess && facResponse.data != null && facResponse.data!.isNotEmpty) {
+        _facilities = facResponse.data!
+            .map((f) => Facility.fromBackendMap(Map<String, dynamic>.from(f as Map)))
+            .toList();
+      }
+
+      // 2. Fetch dashboard metrics
+      final metricsResponse = await _apiService.getDashboardAnalytics();
+      if (metricsResponse.isSuccess && metricsResponse.data != null) {
+        final actual = metricsResponse.data!['actual'] as Map<String, dynamic>?;
+        if (actual != null) {
+          _totalPatientsCount = (actual['totalPatients'] as num?)?.toInt() ?? _patients.length;
+          _pendingReferralsCount = (actual['pendingReferrals'] as num?)?.toInt() ?? 2;
+          _activeAssessmentsCount = (actual['activeAssessments'] as num?)?.toInt() ?? 2;
+          _queueCount = (actual['patientsInQueue'] as num?)?.toInt() ?? 0;
+        }
+      }
+
+      // 3. Pull delta sync changes (patients, followups, tasks)
+      final pullResponse = await _apiService.pullSyncChanges(
+        since: _lastSyncTimestamp,
+        workerId: _workerId,
+      );
+
+      if (pullResponse.isSuccess && pullResponse.data != null) {
+        final delta = pullResponse.data!['delta'] as Map<String, dynamic>?;
+        if (delta != null) {
+          // Merge server patients
+          final serverPatients = delta['patients'] as List?;
+          if (serverPatients != null && serverPatients.isNotEmpty) {
+            for (var p in serverPatients) {
+              final pat = Patient.fromMap(Map<String, dynamic>.from(p as Map));
+              final idx = _patients.indexWhere((existing) => existing.id == pat.id);
+              if (idx >= 0) {
+                _patients[idx] = pat;
+              } else {
+                _patients.insert(0, pat);
+              }
+            }
+          }
+
+          // Merge server follow-up tasks
+          final serverFollowups = delta['followups'] as List?;
+          if (serverFollowups != null && serverFollowups.isNotEmpty) {
+            for (var f in serverFollowups) {
+              final task = FollowUpTask.fromBackendFollowUp(Map<String, dynamic>.from(f as Map));
+              final idx = _followUpTasks.indexWhere((t) => t.id == task.id);
+              if (idx >= 0) {
+                _followUpTasks[idx] = task;
+              } else {
+                _followUpTasks.insert(0, task);
+              }
+            }
+          }
+        }
+        if (pullResponse.data!['syncTimestamp'] != null) {
+          _lastSyncTimestamp = DateTime.tryParse(pullResponse.data!['syncTimestamp'].toString());
+        }
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading dashboard data: $e');
+    }
   }
 
   void setCurrentPatient(Patient patient) {
@@ -235,6 +434,117 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Register patient against POST /api/patients with offline fallback
+  Future<Patient> registerPatientAsync({
+    required String name,
+    required int age,
+    required String gender,
+    required String phone,
+    required String village,
+    String? abhaId,
+    String? bloodGroup,
+    String? dob,
+    String? emergencyContact,
+    String? preferredLanguage,
+    String? district,
+    String? state,
+    String? pinCode,
+    String? address,
+    String? allergies,
+    String? existingConditions,
+    String? currentMedications,
+    String? pastHistory,
+  }) async {
+    Patient newPatient = Patient(
+      id: 'P-${100 + _patients.length + 1}',
+      name: name,
+      age: age,
+      gender: gender,
+      phone: phone,
+      village: village,
+      abhaId: (abhaId != null && abhaId.isNotEmpty) ? abhaId : '91-${_uuid.v4().substring(0, 4)}-${_uuid.v4().substring(0, 4)}',
+      bloodGroup: bloodGroup,
+      dob: dob,
+      emergencyContact: emergencyContact,
+      preferredLanguage: preferredLanguage,
+      district: district,
+      state: state,
+      pinCode: pinCode,
+      address: address,
+      allergies: allergies,
+      existingConditions: existingConditions,
+      currentMedications: currentMedications,
+      pastHistory: pastHistory,
+      isSynced: _isOnline,
+    );
+
+    if (_isOnline) {
+      try {
+        final res = await _apiService.createPatient(
+          name: name,
+          age: age,
+          gender: gender,
+          phone: phone,
+          village: village,
+          dob: dob,
+          abhaId: abhaId,
+        );
+
+        if (res.isSuccess && res.data != null) {
+          newPatient = Patient.fromMap(res.data!).copyWith(
+            bloodGroup: bloodGroup,
+            dob: dob,
+            emergencyContact: emergencyContact,
+            preferredLanguage: preferredLanguage,
+            district: district,
+            state: state,
+            pinCode: pinCode,
+            address: address,
+            allergies: allergies,
+            existingConditions: existingConditions,
+            currentMedications: currentMedications,
+            pastHistory: pastHistory,
+            isSynced: true,
+          );
+        } else {
+          // If conflict or validation error, preserve offline sync queue
+          newPatient = newPatient.copyWith(isSynced: false);
+          _syncQueue.add(SyncItem(
+            id: _uuid.v4(),
+            entityType: 'PATIENT',
+            action: 'CREATE',
+            description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+            payload: newPatient.toMap(),
+          ));
+        }
+      } catch (e) {
+        newPatient = newPatient.copyWith(isSynced: false);
+        _syncQueue.add(SyncItem(
+          id: _uuid.v4(),
+          entityType: 'PATIENT',
+          action: 'CREATE',
+          description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+          payload: newPatient.toMap(),
+        ));
+      }
+    } else {
+      _syncQueue.add(SyncItem(
+        id: _uuid.v4(),
+        entityType: 'PATIENT',
+        action: 'CREATE',
+        description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+        payload: newPatient.toMap(),
+      ));
+    }
+
+    _patients.insert(0, newPatient);
+    _currentPatient = newPatient;
+    _totalPatientsCount += 1;
+    notifyListeners();
+    return newPatient;
+  }
+
+  /// Synchronous wrapper for existing UI calls
   Patient registerPatient({
     required String name,
     required int age,
@@ -258,14 +568,26 @@ class AppState extends ChangeNotifier {
 
     _patients.insert(0, newPatient);
     _currentPatient = newPatient;
+    _totalPatientsCount += 1;
 
     if (!_isOnline) {
       _syncQueue.add(SyncItem(
         id: _uuid.v4(),
         entityType: 'PATIENT',
         action: 'CREATE',
-        description: 'New Patient Registration: ${newPatient.name} (${newPatient.village})',
+        description: 'New Patient: ${newPatient.name} (${newPatient.village})',
+        payload: newPatient.toMap(),
       ));
+    } else {
+      // Trigger fire-and-forget sync to backend
+      _apiService.createPatient(
+        name: name,
+        age: age,
+        gender: gender,
+        phone: phone,
+        village: village,
+        abhaId: abhaId,
+      );
     }
 
     notifyListeners();
@@ -276,6 +598,132 @@ class AppState extends ChangeNotifier {
     return _patientAssessments[patientId] ?? [];
   }
 
+  /// Fetch full patient timeline from backend GET /api/patients/:id/timeline
+  Future<void> fetchPatientTimeline(String patientId) async {
+    if (!_isOnline) return;
+
+    try {
+      final res = await _apiService.getPatientTimeline(patientId);
+      if (res.isSuccess && res.data != null) {
+        final encounters = res.data!['encounters'] as List?;
+        if (encounters != null) {
+          final assessmentsList = <Assessment>[];
+          for (var enc in encounters) {
+            if (enc is Map && enc['assessments'] is List) {
+              for (var asm in (enc['assessments'] as List)) {
+                if (asm is Map) {
+                  final fullAsm = Map<String, dynamic>.from(asm);
+                  fullAsm['encounter'] = enc;
+                  assessmentsList.add(Assessment.fromMap(fullAsm));
+                }
+              }
+            }
+          }
+          if (assessmentsList.isNotEmpty) {
+            _patientAssessments[patientId] = assessmentsList;
+            notifyListeners();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching patient timeline: $e');
+    }
+  }
+
+  /// Create assessment and trigger XAI Triage from backend POST /api/assessments
+  Future<Assessment> createAssessmentAsync({
+    required String patientId,
+    required String primarySymptom,
+    required String severity,
+    required int durationDays,
+    required Vitals vitals,
+    String? clinicalNotes,
+  }) async {
+    Assessment assessment = Assessment(
+      id: 'ASM-${100 + (_patientAssessments[patientId]?.length ?? 0) + 1}',
+      patientId: patientId,
+      primarySymptom: primarySymptom,
+      severity: severity,
+      durationDays: durationDays,
+      vitals: vitals,
+      clinicalNotes: clinicalNotes,
+      isSynced: _isOnline,
+    );
+
+    if (_isOnline) {
+      try {
+        final symptomsPayload = [
+          {
+            'name': primarySymptom,
+            'duration': '$durationDays days',
+            'severity': severity.toUpperCase(),
+          }
+        ];
+        final vitalsPayload = vitals.toBackendVitalsList();
+
+        final res = await _apiService.createAssessment(
+          patientId: patientId,
+          symptoms: symptomsPayload,
+          vitals: vitalsPayload,
+          provenance: 'WORKER_RECORDED',
+        );
+
+        if (res.isSuccess && res.data != null) {
+          assessment = Assessment.fromMap(res.data!);
+
+          // If backend generated AI Recommendation, use it
+          if (assessment.rawAiRecommendation != null) {
+            _currentTriageResult = TriageResult.fromBackendRecommendation(
+              assessment.rawAiRecommendation!,
+              assessmentId: assessment.id,
+              fallbackSymptom: primarySymptom,
+            );
+          } else {
+            _currentTriageResult = _computeTriage(assessment);
+          }
+        } else {
+          _currentTriageResult = _computeTriage(assessment);
+          _syncQueue.add(SyncItem(
+            id: _uuid.v4(),
+            entityType: 'ASSESSMENT',
+            action: 'CREATE',
+            description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
+            payload: assessment.toMap(),
+          ));
+        }
+      } catch (e) {
+        _currentTriageResult = _computeTriage(assessment);
+        _syncQueue.add(SyncItem(
+          id: _uuid.v4(),
+          entityType: 'ASSESSMENT',
+          action: 'CREATE',
+          description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
+          payload: assessment.toMap(),
+        ));
+      }
+    } else {
+      _currentTriageResult = _computeTriage(assessment);
+      _syncQueue.add(SyncItem(
+        id: _uuid.v4(),
+        entityType: 'ASSESSMENT',
+        action: 'CREATE',
+        description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
+        payload: assessment.toMap(),
+      ));
+    }
+
+    if (!_patientAssessments.containsKey(patientId)) {
+      _patientAssessments[patientId] = [];
+    }
+    _patientAssessments[patientId]!.insert(0, assessment);
+    _currentAssessment = assessment;
+    _activeAssessmentsCount += 1;
+
+    notifyListeners();
+    return assessment;
+  }
+
+  /// Synchronous wrapper
   Assessment createAssessment({
     required String patientId,
     required String primarySymptom,
@@ -300,8 +748,6 @@ class AppState extends ChangeNotifier {
     }
     _patientAssessments[patientId]!.insert(0, assessment);
     _currentAssessment = assessment;
-
-    // Run AI Triage engine calculations
     _currentTriageResult = _computeTriage(assessment);
 
     if (!_isOnline) {
@@ -310,7 +756,18 @@ class AppState extends ChangeNotifier {
         entityType: 'ASSESSMENT',
         action: 'CREATE',
         description: 'Vitals & Assessment: $primarySymptom (Severity: $severity)',
+        payload: assessment.toMap(),
       ));
+    } else {
+      // Async trigger to backend
+      createAssessmentAsync(
+        patientId: patientId,
+        primarySymptom: primarySymptom,
+        severity: severity,
+        durationDays: durationDays,
+        vitals: vitals,
+        clinicalNotes: clinicalNotes,
+      );
     }
 
     notifyListeners();
@@ -324,7 +781,6 @@ class AppState extends ChangeNotifier {
     String action = 'Standard outpatient consultation at Sub-Centre / PHC.';
     String reason = 'Patient presents with mild or routine symptoms with normal baseline vitals.';
 
-    // Evaluate symptoms & vitals against clinical rules
     if (asm.severity == 'SEVERE') {
       score += 40;
       drivers.add('High symptom severity declared (${asm.primarySymptom})');
@@ -389,6 +845,86 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Submits referral case to backend POST /api/referrals
+  Future<ReferralCase> submitReferralCaseAsync() async {
+    final patient = _currentPatient ?? _patients.first;
+    final facility = _selectedFacility ?? _facilities[1];
+    final urgency = _currentTriageResult?.confirmedUrgency ?? _currentTriageResult?.urgencyLevel ?? 'PRIORITY';
+    final complaint = _currentAssessment?.primarySymptom ?? 'General clinical consultation';
+
+    ReferralCase referral = ReferralCase(
+      referralId: 'REF-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      patientId: patient.id,
+      patientName: patient.name,
+      triageUrgency: urgency,
+      facility: facility,
+      chiefComplaint: complaint,
+    );
+
+    if (_isOnline) {
+      try {
+        final res = await _apiService.createReferral(
+          patientId: patient.id,
+          destinationId: facility.id,
+          urgency: urgency,
+          reason: complaint,
+        );
+
+        if (res.isSuccess && res.data != null) {
+          referral = ReferralCase.fromBackendMap(
+            res.data!,
+            fallbackFacility: facility,
+            fallbackPatientName: patient.name,
+          );
+        } else {
+          _syncQueue.add(SyncItem(
+            id: _uuid.v4(),
+            entityType: 'REFERRAL',
+            action: 'CREATE',
+            description: 'Referral to ${facility.name} for ${patient.name} (Urgency: $urgency)',
+            payload: {
+              'patientId': patient.id,
+              'destinationId': facility.id,
+              'urgency': urgency,
+              'reason': complaint,
+            },
+          ));
+        }
+      } catch (e) {
+        _syncQueue.add(SyncItem(
+          id: _uuid.v4(),
+          entityType: 'REFERRAL',
+          action: 'CREATE',
+          description: 'Referral to ${facility.name} for ${patient.name} (Urgency: $urgency)',
+          payload: {
+            'patientId': patient.id,
+            'destinationId': facility.id,
+            'urgency': urgency,
+            'reason': complaint,
+          },
+        ));
+      }
+    } else {
+      _syncQueue.add(SyncItem(
+        id: _uuid.v4(),
+        entityType: 'REFERRAL',
+        action: 'CREATE',
+        description: 'Referral to ${facility.name} for ${patient.name} (Urgency: $urgency)',
+        payload: {
+          'patientId': patient.id,
+          'destinationId': facility.id,
+          'urgency': urgency,
+          'reason': complaint,
+        },
+      ));
+    }
+
+    _lastSubmittedCase = referral;
+    _pendingReferralsCount += 1;
+    notifyListeners();
+    return referral;
+  }
+
   ReferralCase submitReferralCase() {
     final patient = _currentPatient ?? _patients.first;
     final facility = _selectedFacility ?? _facilities[1];
@@ -412,9 +948,24 @@ class AppState extends ChangeNotifier {
         entityType: 'REFERRAL',
         action: 'CREATE',
         description: 'Referral to ${facility.name} for ${patient.name} (Urgency: $urgency)',
+        payload: {
+          'patientId': patient.id,
+          'destinationId': facility.id,
+          'urgency': urgency,
+          'reason': complaint,
+        },
       ));
+    } else {
+      // Async trigger to backend
+      _apiService.createReferral(
+        patientId: patient.id,
+        destinationId: facility.id,
+        urgency: urgency,
+        reason: complaint,
+      );
     }
 
+    _pendingReferralsCount += 1;
     notifyListeners();
     return referral;
   }
@@ -433,35 +984,87 @@ class AppState extends ChangeNotifier {
         completedAt: DateTime.now(),
       );
 
+      final payload = {
+        'id': taskId,
+        'status': 'COMPLETED',
+        'visitNotes': visitNotes,
+      };
+
       if (!_isOnline) {
         _syncQueue.add(SyncItem(
           id: _uuid.v4(),
           entityType: 'FOLLOW_UP',
           action: 'UPDATE',
           description: 'Completed Visit for ${task.patientName}: $visitNotes',
+          payload: payload,
         ));
+      } else {
+        // Send mutation in sync push
+        _apiService.pushSyncBatch(
+          workerId: _workerId,
+          mutations: [
+            {
+              'operationId': _uuid.v4(),
+              'entity': 'FOLLOWUP',
+              'action': 'UPDATE',
+              'payload': payload,
+              'deviceId': 'flutter-mobile-client',
+              'timestamp': DateTime.now().toIso8601String(),
+            }
+          ],
+        );
       }
 
       notifyListeners();
     }
   }
 
-  Future<void> syncAllQueueItems() async {
+  /// Two-way sync: Push batch mutations to POST /api/sync and pull delta from GET /api/sync/pull
+  Future<bool> syncAllQueueItems() async {
     for (int i = 0; i < _syncQueue.length; i++) {
       _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCING');
     }
     notifyListeners();
 
-    await Future.delayed(const Duration(seconds: 1));
+    bool syncSuccess = true;
 
-    for (int i = 0; i < _syncQueue.length; i++) {
-      _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCED');
+    if (_isOnline && _syncQueue.isNotEmpty) {
+      try {
+        final mutations = _syncQueue.map((item) => item.toBackendMutation()).toList();
+        final pushResponse = await _apiService.pushSyncBatch(
+          workerId: _workerId,
+          mutations: mutations,
+        );
+
+        if (pushResponse.isSuccess) {
+          for (int i = 0; i < _syncQueue.length; i++) {
+            _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCED');
+          }
+          notifyListeners();
+        } else {
+          syncSuccess = false;
+        }
+      } catch (e) {
+        syncSuccess = false;
+      }
+    } else {
+      await Future.delayed(const Duration(milliseconds: 600));
+      for (int i = 0; i < _syncQueue.length; i++) {
+        _syncQueue[i] = _syncQueue[i].copyWith(status: 'SYNCED');
+      }
+      notifyListeners();
     }
-    notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Pull delta updates from backend
+    if (_isOnline) {
+      await loadDashboardData();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 400));
     _syncQueue.clear();
     notifyListeners();
+
+    return syncSuccess;
   }
 
   List<Patient> searchPatients(String query) {

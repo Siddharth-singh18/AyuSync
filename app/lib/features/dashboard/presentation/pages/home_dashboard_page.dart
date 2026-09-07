@@ -24,6 +24,14 @@ class _HomeDashboardPageState extends State<HomeDashboardPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppState>(context, listen: false).loadDashboardData();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
@@ -842,10 +850,23 @@ class _HomeDashboardPageState extends State<HomeDashboardPage> {
           ],
         ),
         actions: [
+          TextButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await appState.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+            },
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
+            label: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            ),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close', style: TextStyle(color: AppColors.forest, fontWeight: FontWeight.bold)),
-          )
+          ),
         ],
       ),
     );

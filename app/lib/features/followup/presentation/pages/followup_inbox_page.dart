@@ -51,18 +51,18 @@ class _FollowUpInboxPageState extends State<FollowUpInboxPage> {
           ),
           const Divider(height: 1),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
             child: Row(
               children: [
-                const Icon(Icons.arrow_downward, size: 16, color: Color(0xFF2563EB)),
-                const SizedBox(width: 6),
-                const Text(
+                Icon(Icons.arrow_downward, size: 16, color: Color(0xFF2563EB)),
+                SizedBox(width: 6),
+                Text(
                   'Doctor Counter-Referral Assignments',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                 ),
-                const Spacer(),
-                const Text('Tap for 17 Details', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Spacer(),
+                Text('Tap for 17 Details', style: TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
